@@ -1,0 +1,141 @@
+.sn-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sn-section {
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  overflow: hidden;
+}
+
+.sn-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cr-text-secondary);
+  background: var(--cr-bg-surface);
+  transition: background var(--cr-transition-fast);
+}
+
+.sn-section-header:hover {
+  background: var(--cr-bg-elevated);
+}
+
+.sn-toggle {
+  font-size: 8px;
+  color: var(--cr-text-muted);
+}
+
+.sn-section-body {
+  padding: 8px 10px;
+  font-size: 10px;
+  color: var(--cr-text-secondary);
+  animation: cr-fadeIn 0.2s ease;
+}
+
+.sn-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sn-table td {
+  padding: 3px 0;
+  border-bottom: 1px solid var(--cr-border);
+}
+
+.sn-table td:first-child {
+  color: var(--cr-text-muted);
+  width: 55%;
+}
+
+.sn-table td:last-child {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+
+.sn-highlight {
+  color: var(--cr-accent-cyan) !important;
+  font-weight: 600;
+}
+
+.sn-equation {
+  padding: 6px 8px;
+  margin: 6px 0;
+  background: var(--cr-bg-glass);
+  border-radius: var(--cr-radius-sm);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--cr-accent-cyan);
+  text-align: center;
+}
+
+.sn-cite {
+  font-size: 9px;
+  color: var(--cr-text-muted);
+  font-style: italic;
+  text-align: right;
+}
+
+.sn-note {
+  font-size: 9px;
+  color: var(--cr-text-muted);
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.sn-eq-block {
+  margin-bottom: 8px;
+}
+
+.sn-eq-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cr-text-muted);
+  margin-bottom: 2px;
+}
+
+.sn-ref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sn-ref {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--cr-border);
+}
+
+.sn-ref-authors {
+  font-weight: 600;
+  font-size: 10px;
+  color: var(--cr-text-secondary);
+}
+
+.sn-ref-title {
+  font-size: 9px;
+  color: var(--cr-text-muted);
+  font-style: italic;
+  margin-top: 1px;
+}
+
+.sn-ref-doi {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--cr-accent-cyan);
+  opacity: 0.8;
+  text-decoration: none;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.sn-ref-doi:hover {
+  opacity: 1;
+  text-decoration: underline;
+}

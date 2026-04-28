@@ -1,0 +1,104 @@
+.ip-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.ip-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--cr-bg-primary);
+  border-radius: var(--cr-radius-sm);
+}
+
+.ip-label {
+  font-size: 10px;
+  color: var(--cr-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ip-value {
+  font-size: 13px;
+  color: var(--cr-text-primary);
+}
+
+.ip-description {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--cr-text-secondary);
+  padding: 8px;
+  background: var(--cr-bg-primary);
+  border-radius: var(--cr-radius-sm);
+  border-left: 3px solid var(--cr-accent-cyan);
+}
+
+.ip-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ip-ref {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--cr-bg-primary);
+  border-radius: var(--cr-radius-sm);
+  font-size: 12px;
+}
+
+.ip-ref-authors {
+  font-weight: 500;
+  color: var(--cr-text-primary);
+}
+
+.ip-ref-title {
+  font-style: italic;
+  color: var(--cr-text-secondary);
+}
+
+.ip-ref-journal {
+  color: var(--cr-text-muted);
+}
+
+.ip-ref-doi {
+  color: var(--cr-accent-blue);
+  font-family: var(--cr-font-mono);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.ip-ref-doi:hover {
+  text-decoration: underline;
+}
+
+.ip-credits {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  margin-top: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--cr-text-muted);
+  border-top: 1px solid var(--cr-border);
+}
+
+.ip-credits a {
+  color: var(--cr-accent-blue);
+  text-decoration: none;
+}
+
+.ip-credits a:hover {
+  text-decoration: underline;
+}

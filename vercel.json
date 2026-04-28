@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/pds-data/:match*",
+      "destination": "https://pds-geosciences.wustl.edu/:match*"
+    },
+    {
+      "source": "/pds-ode-files/:match*",
+      "destination": "https://ode.rsl.wustl.edu/:match*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Gümüş"
+    given-names: "Mehmet"
+title: "CRYORADAR"
+version: 1.0.0
+date-released: 2026-04-28
+url: "https://cyroradar.vercel.app"
+repository-code: "https://github.com/SpaceEngineerSS/cyroradar"
+abstract: "A high-fidelity, browser-based planetary radar simulation and tomography station for Martian subsurface exploration."
+references:
+  - type: article
+    authors:
+      - family-names: "Orosei"
+        given-names: "R."
+    title: "Radar evidence of subglacial liquid water on Mars"
+    year: 2018
+    journal: "Science"
+    volume: 361
+  - type: article
+    authors:
+      - family-names: "Bierson"
+        given-names: "C. J."
+    title: "A Strong Paleoclimatic Signal in the Martian South Polar Cap"
+    year: 2021
+    journal: "Geophysical Research Letters"

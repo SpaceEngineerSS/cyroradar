@@ -1,0 +1,60 @@
+{
+  "name": "cyroradar",
+  "version": "1.0.0",
+  "description": "High-fidelity browser-based Mars subsurface ice detection radar simulator (MARSIS/SHARAD)",
+  "type": "module",
+  "license": "MIT",
+  "author": "Mehmet Gümüş (https://github.com/SpaceEngineerSS)",
+  "homepage": "https://cyroradar.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SpaceEngineerSS/cyroradar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SpaceEngineerSS/cyroradar/issues"
+  },
+  "keywords": [
+    "mars",
+    "radar",
+    "planetary-science",
+    "sharad",
+    "marsis",
+    "simulation",
+    "subsurface",
+    "ice-detection",
+    "radargram",
+    "scientific-computing"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "jspdf": "^4.2.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.183.1",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vite": "^8.0.1",
+    "vitest": "^4.1.2"
+  }
+}
