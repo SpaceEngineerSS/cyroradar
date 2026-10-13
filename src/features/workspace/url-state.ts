@@ -34,27 +34,33 @@ export function shareUrl(): string {
 /** The hash is read once per page load, even though StrictMode mounts twice. */
 let restored = false;
 
+/** Applies a shared link's hash, if it names a scene different from what is open. */
+function applyHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  const scene = p.get('scene');
+  const s = useApp.getState();
+  if (!scene || !SCENES.has(scene) || (s.datasetKey === `synthetic:${scene}` && restored)) return;
+  const tec = Number(p.get('tec'));
+  void s.loadSynthetic(scene, Number.isFinite(tec) && p.has('tec') ? Math.min(3, Math.max(0, tec)) : undefined).then(() => {
+    const st = useApp.getState();
+    const view = p.get('view') as MainView | null;
+    if (view && VIEWS.includes(view)) st.set('mainView', view);
+    const cmap = p.get('cmap') as ColormapId | null;
+    if (cmap && CMAPS.has(cmap)) st.set('colormap', cmap);
+    const c = p.get('contrast')?.split(',').map(Number);
+    if (c && c.length === 2 && c.every(Number.isFinite)) st.setContrast(Math.max(0, c[0]), Math.min(1, c[1]));
+    const trace = Number(p.get('trace'));
+    if (p.has('trace') && Number.isInteger(trace) && st.dataset && trace >= 0 && trace < st.dataset.radargram.width) st.set('pinnedTrace', trace);
+    if (p.get('statics') === '1') st.set('statics', true);
+  });
+}
+
 export function useUrlState() {
   useEffect(() => {
-    const p = new URLSearchParams(location.hash.slice(1));
-    const scene = p.get('scene');
-    const s = useApp.getState();
-    if (!restored && scene && SCENES.has(scene)) {
-      const tec = Number(p.get('tec'));
-      void s.loadSynthetic(scene, Number.isFinite(tec) && p.has('tec') ? Math.min(3, Math.max(0, tec)) : undefined).then(() => {
-        const st = useApp.getState();
-        const view = p.get('view') as MainView | null;
-        if (view && VIEWS.includes(view)) st.set('mainView', view);
-        const cmap = p.get('cmap') as ColormapId | null;
-        if (cmap && CMAPS.has(cmap)) st.set('colormap', cmap);
-        const c = p.get('contrast')?.split(',').map(Number);
-        if (c && c.length === 2 && c.every(Number.isFinite)) st.setContrast(Math.max(0, c[0]), Math.min(1, c[1]));
-        const trace = Number(p.get('trace'));
-        if (p.has('trace') && Number.isInteger(trace) && st.dataset && trace >= 0 && trace < st.dataset.radargram.width) st.set('pinnedTrace', trace);
-        if (p.get('statics') === '1') st.set('statics', true);
-      });
-    }
+    if (!restored) applyHash();
     restored = true;
+    // A link pasted into the address bar of an open tab only changes the hash.
+    window.addEventListener('hashchange', applyHash);
 
     let timer = 0;
     const unsub = useApp.subscribe(
@@ -72,6 +78,7 @@ export function useUrlState() {
     return () => {
       clearTimeout(timer);
       unsub();
+      window.removeEventListener('hashchange', applyHash);
     };
   }, []);
 }
