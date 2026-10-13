@@ -69,6 +69,9 @@ export function DockedInspector() {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize panel"
+        aria-valuenow={width}
+        aria-valuemin={280}
+        aria-valuemax={560}
         tabIndex={0}
         className="absolute top-0 -right-[3px] z-10 h-full w-[6px] cursor-col-resize hover:bg-accent-soft focus-visible:bg-accent-soft"
         onPointerDown={e => {

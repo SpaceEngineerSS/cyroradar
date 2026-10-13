@@ -40,6 +40,7 @@ function ViewTabs() {
             key={v.id}
             role="tab"
             aria-selected={active}
+            aria-label={v.label}
             onClick={() => set('mainView', v.id)}
             className={cx('relative flex items-center gap-1.5 px-3 text-sm transition-colors', active ? 'text-ink' : 'text-faint hover:text-dim')}
           >

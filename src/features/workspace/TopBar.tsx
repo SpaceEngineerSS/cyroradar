@@ -78,6 +78,7 @@ export function TopBar() {
 
       <Link
         href="/docs"
+        aria-label="Documentation"
         className={cx('inline-flex h-8 items-center gap-1.5 rounded-xs px-2 text-sm text-dim hover:bg-hover hover:text-ink')}
       >
         <Icon name="docs" size={16} />

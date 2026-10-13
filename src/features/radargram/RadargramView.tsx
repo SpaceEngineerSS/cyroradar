@@ -349,6 +349,8 @@ export function RadargramView({ variant, showAxes = true, caption }: Props) {
     <div
       ref={hostRef}
       tabIndex={0}
+      role="application"
+      aria-roledescription="radargram"
       aria-label={`Radargram${caption ? `, ${caption}` : ''}. Arrow keys pan, plus and minus zoom, 0 fits.`}
       className="plot relative h-full w-full overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-accent"
       data-radargram={variant}

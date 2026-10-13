@@ -136,7 +136,7 @@ export function generateReport(): void {
     const img = renderPlotImage(1.5);
     const h = Math.min(110, (TEXT_W * img.height) / img.width);
     need(h + 10);
-    doc.addImage(img.toDataURL('image/png'), 'PNG', M, y, TEXT_W, h);
+    doc.addImage(img.toDataURL('image/jpeg', 0.88), 'JPEG', M, y, TEXT_W, h);
     y += h + 4;
     para(`Figure 1. ${s.mainView === 'radargram' ? 'Radargram' : 'Current view'} as displayed, colour table ${s.colormap}${s.statics ? ', static correction applied' : ''}${s.variant === 'migrated' && s.migration.result ? ', migrated' : ''}.`, 8, 100);
   } catch {
@@ -196,10 +196,11 @@ export function generateReport(): void {
     );
   }
 
-  if (m.references.length) {
+  {
     heading('References');
     for (const ref of m.references) para(`${ref.authors} (${ref.year}). ${ref.title}. ${ref.journal}.${ref.doi ? ` doi:${ref.doi}` : ''}`, 8.5);
-    para('Orosei, R. et al. (2018). Radar evidence of subglacial liquid water on Mars. Science 361, 490-493. doi:10.1126/science.aar7268', 8.5);
+    if (!m.references.some(r => r.doi === '10.1126/science.aar7268'))
+      para('Orosei, R. et al. (2018). Radar evidence of subglacial liquid water on Mars. Science 361, 490-493. doi:10.1126/science.aar7268', 8.5);
   }
 
   footer();
