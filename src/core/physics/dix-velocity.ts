@@ -1,34 +1,15 @@
-/* CRYORADAR — Dix Equation RMS Velocity Engine
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* RMS velocity of a layered medium (Dix 1955).
  *
- * Computes depth-dependent RMS velocity profiles for multi-layered
- * subsurface models using the Dix (1955) equation.
+ *   V_rms(t)² = Σ vᵢ² Δtᵢ / Σ Δtᵢ
  *
- * The constant-velocity assumption V = c/√ε is only valid for a
- * single homogeneous layer. Real Mars subsurfaces have stacked
- * layers with distinct dielectric properties. The Dix equation
- * computes the root-mean-square velocity that correctly describes
- * the hyperbolic moveout of reflections through N layers:
+ * where vᵢ = c/√εᵢ and Δtᵢ is the round-trip time spent in layer i up to the
+ * delay t. Migration uses V_rms(t) to build diffraction hyperbolas.
  *
- *   V_RMS,n = √( Σᵢ₌₁ⁿ Vᵢ² Δtᵢ / Σᵢ₌₁ⁿ Δtᵢ )
- *
- * Where:
- *   Vᵢ = c / √εᵢ    — interval velocity in layer i
- *   Δtᵢ = 2dᵢ / Vᵢ  — two-way travel time through layer i
- *
- * The resulting Float32Array V_RMS profile is passed to the SAR
- * Migration Worker for correct Kirchhoff delay computation.
- *
- * References:
  *   Dix, C.H. (1955), Geophysics 20(1), 68–86
- *   Yilmaz (2001), Seismic Data Analysis, SEG — Ch. 3 */
+ *   Yilmaz, Ö. (2001), Seismic Data Analysis, SEG, ch. 3 */
 
 import { SPEED_OF_LIGHT } from './constants';
-
-export interface DixLayer {
-  permittivity: number;
-  thicknessM: number;
-}
+import type { VelocityLayer } from './depth-conversion';
 
 export interface DixResult {
   vrms: number;
@@ -36,91 +17,61 @@ export interface DixResult {
   intervalVelocities: number[];
 }
 
-/**
- * Computes depth-dependent RMS velocity profiles for a multi-layered subsurface
- * model using the Dix (1955) equation. Essential for accurate SAR time-to-depth migration.
- * 
- * @param layers Array of defined subsurface layers with permittivity and thickness.
- * @returns The RMS velocity, total two-way travel time, and interval velocities.
- * 
- * @see {@link https://doi.org/10.1190/1.1438126|Dix, C. H. (1955). Seismic velocities from surface measurements.}
- */
-export function computeDixVRMS(layers: DixLayer[]): DixResult {
-  if (layers.length === 0) {
-    return { vrms: SPEED_OF_LIGHT, totalTwoWayTimeS: 0, intervalVelocities: [] };
-  }
-
+export function computeDixVRMS(layers: readonly VelocityLayer[]): DixResult {
   let sumV2dt = 0;
   let sumDt = 0;
   const intervalVelocities: number[] = [];
-
   for (const layer of layers) {
-    const eps = Math.max(1, layer.permittivity);
-    const vi = SPEED_OF_LIGHT / Math.sqrt(eps);
-    const dti = (2 * Math.max(0, layer.thicknessM)) / vi;
-
-    intervalVelocities.push(vi);
-    sumV2dt += vi * vi * dti;
-    sumDt += dti;
+    const v = SPEED_OF_LIGHT / Math.sqrt(Math.max(1, layer.permittivity));
+    const dt = (2 * Math.max(0, layer.thicknessM)) / v;
+    intervalVelocities.push(v);
+    sumV2dt += v * v * dt;
+    sumDt += dt;
   }
-
-  const vrms = sumDt > 0 ? Math.sqrt(sumV2dt / sumDt) : SPEED_OF_LIGHT;
-
-  return { vrms, totalTwoWayTimeS: sumDt, intervalVelocities };
+  return {
+    vrms: sumDt > 0 ? Math.sqrt(sumV2dt / sumDt) : SPEED_OF_LIGHT,
+    totalTwoWayTimeS: sumDt,
+    intervalVelocities,
+  };
 }
 
 /**
- * Builds a dense float array of the RMS velocity sampled at the radar temporal resolution.
- * This buffer is transferred zero-copy to the Web Worker for the O(N·A·M) migrated output.
- * 
- * @param layers Array of subsurface dielectric layers.
- * @param numSamples Number of vertical fast-time samples in the radargram.
- * @param sampleInterval The radar fast-time sampling interval (Δt).
- * @returns A Float32Array where index z is the RMS velocity mapping to sample z.
+ * V_rms sampled at every delay below the surface: profile[k] is the RMS
+ * velocity for a round-trip delay of k·dt below the surface echo.
+ * Below the model the last layer continues; an empty model uses the bulk ε.
  */
 export function buildVRMSProfile(
-  layers: DixLayer[],
+  layers: readonly VelocityLayer[],
   numSamples: number,
-  sampleInterval: number
+  sampleInterval: number,
+  bulkPermittivity = 3.15,
 ): Float32Array {
   const profile = new Float32Array(numSamples);
+  const stack = layers.filter(l => l.thicknessM > 0);
+  const tailEps = stack.length > 0 ? stack[stack.length - 1].permittivity : bulkPermittivity;
+  const tailV = SPEED_OF_LIGHT / Math.sqrt(Math.max(1, tailEps));
 
-  if (layers.length === 0) {
-    profile.fill(SPEED_OF_LIGHT);
-    return profile;
-  }
+  let layerIdx = 0;
+  let layerStartT = 0;
+  let sumV2dtBefore = 0;
 
-  const layerBoundaries: { sampleEnd: number; vrmsAtEnd: number }[] = [];
-  let cumulativeTimeS = 0;
-  let sumV2dt = 0;
-
-  for (const layer of layers) {
-    const eps = Math.max(1, layer.permittivity);
-    const vi = SPEED_OF_LIGHT / Math.sqrt(eps);
-    const dti = (2 * Math.max(0, layer.thicknessM)) / vi;
-
-    sumV2dt += vi * vi * dti;
-    cumulativeTimeS += dti;
-
-    const vrmsHere = Math.sqrt(sumV2dt / cumulativeTimeS);
-    const sampleEnd = Math.floor(cumulativeTimeS / sampleInterval);
-
-    layerBoundaries.push({ sampleEnd, vrmsAtEnd: vrmsHere });
-  }
-
-  let prevEnd = 0;
-  for (const { sampleEnd, vrmsAtEnd } of layerBoundaries) {
-    const end = Math.min(sampleEnd, numSamples);
-    for (let s = prevEnd; s < end; s++) {
-      profile[s] = vrmsAtEnd;
+  for (let k = 0; k < numSamples; k++) {
+    const t = k * sampleInterval;
+    while (layerIdx < stack.length) {
+      const l = stack[layerIdx];
+      const v = SPEED_OF_LIGHT / Math.sqrt(Math.max(1, l.permittivity));
+      const dt = (2 * l.thicknessM) / v;
+      if (t <= layerStartT + dt) break;
+      sumV2dtBefore += v * v * dt;
+      layerStartT += dt;
+      layerIdx++;
     }
-    prevEnd = end;
+    const v = layerIdx < stack.length
+      ? SPEED_OF_LIGHT / Math.sqrt(Math.max(1, stack[layerIdx].permittivity))
+      : tailV;
+    profile[k] = t > 0 ? Math.sqrt((sumV2dtBefore + v * v * (t - layerStartT)) / t) : v;
   }
-
-  const lastVrms = layerBoundaries[layerBoundaries.length - 1].vrmsAtEnd;
-  for (let s = prevEnd; s < numSamples; s++) {
-    profile[s] = lastVrms;
-  }
-
   return profile;
 }
+
+export type DixLayer = VelocityLayer;

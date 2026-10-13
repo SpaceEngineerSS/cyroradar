@@ -1,101 +1,72 @@
-/* CRYORADAR — Two-Way Time-Depth Conversion
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* Two-way time ↔ depth.
  *
- * Derivation from first principles:
- *   In a medium with relative permittivity εᵣ and relative permeability μᵣ ≈ 1,
- *   the electromagnetic wave velocity is v = c / √εᵣ.
- *   For a two-way path through a layer of thickness d:
- *     t = 2d / v = 2d√εᵣ / c
- *   Solving for depth:
- *     d = c·t / (2√εᵣ)
+ * In a layer with permittivity ε the wave speed is v = c/√ε, so a layer of
+ * thickness d adds a round-trip delay of 2d√ε/c. Below the last layer of the
+ * model we continue with the last layer's speed (or the bulk ε when the model
+ * is empty).
  *
- *   For N stacked layers with different εᵣ values:
- *     d_total = Σᵢ cΔtᵢ / (2√εᵣᵢ)
- *
- * References:
- *   Seu et al. (2007), JGR 112, E05S05
- *   Bramson et al. (2015), GRL 42, 6566–6574 */
+ *   Seu et al. (2007), JGR 112, E05S05 */
 
 import { SPEED_OF_LIGHT } from './constants';
-import type { DepthResult } from '../../types/types';
 
-export function waveVelocity(permittivity: number): number {
-  if (permittivity < 1) throw new RangeError('Permittivity must be ≥ 1');
-  return SPEED_OF_LIGHT / Math.sqrt(permittivity);
-}
-
-export function timeToDepth(twoWayTimeS: number, permittivity: number): DepthResult {
-  if (twoWayTimeS < 0) throw new RangeError('Travel time must be ≥ 0');
-  if (permittivity < 1) throw new RangeError('Permittivity must be ≥ 1');
-
-  const v = waveVelocity(permittivity);
-  const depthMeters = (SPEED_OF_LIGHT * twoWayTimeS) / (2 * Math.sqrt(permittivity));
-
-  return {
-    depthMeters,
-    travelTimeUs: twoWayTimeS * 1e6,
-    velocityMps: v,
-  };
-}
-
-export function depthToTime(depthM: number, permittivity: number): number {
-  if (depthM < 0) throw new RangeError('Depth must be ≥ 0');
-  if (permittivity < 1) throw new RangeError('Permittivity must be ≥ 1');
-  return (2 * depthM * Math.sqrt(permittivity)) / SPEED_OF_LIGHT;
-}
-
-export interface LayerDefinition {
+export interface VelocityLayer {
   permittivity: number;
   thicknessM: number;
 }
 
-export function multiLayerDepth(
-  layers: LayerDefinition[]
-): { totalDepth: number; perLayer: DepthResult[] } {
-  let totalDepth = 0;
-  const perLayer: DepthResult[] = [];
+export function waveVelocity(permittivity: number): number {
+  if (!(permittivity >= 1)) throw new RangeError('Permittivity must be ≥ 1');
+  return SPEED_OF_LIGHT / Math.sqrt(permittivity);
+}
 
-  for (const layer of layers) {
-    const twoWayTime = depthToTime(layer.thicknessM, layer.permittivity);
-    const result = timeToDepth(twoWayTime, layer.permittivity);
-    perLayer.push(result);
-    totalDepth += result.depthMeters;
+/** Depth reached after a round-trip delay `t` below the surface, metres. */
+export function timeToDepth(t: number, layers: readonly VelocityLayer[], bulkPermittivity = 3.15): number {
+  if (!(t > 0)) return 0;
+  let remaining = t;
+  let depth = 0;
+  for (const l of layers) {
+    const sq = Math.sqrt(Math.max(1, l.permittivity));
+    const layerTime = (2 * Math.max(0, l.thicknessM) * sq) / SPEED_OF_LIGHT;
+    if (remaining <= layerTime) return depth + (remaining * SPEED_OF_LIGHT) / (2 * sq);
+    remaining -= layerTime;
+    depth += Math.max(0, l.thicknessM);
   }
+  const tail = layers.length > 0 ? layers[layers.length - 1].permittivity : bulkPermittivity;
+  return depth + (remaining * SPEED_OF_LIGHT) / (2 * Math.sqrt(Math.max(1, tail)));
+}
 
-  return { totalDepth, perLayer };
+/** Round-trip delay needed to reach `depth` metres below the surface. */
+export function depthToTime(depth: number, layers: readonly VelocityLayer[], bulkPermittivity = 3.15): number {
+  if (!(depth > 0)) return 0;
+  let remaining = depth;
+  let t = 0;
+  for (const l of layers) {
+    const sq = Math.sqrt(Math.max(1, l.permittivity));
+    const d = Math.max(0, l.thicknessM);
+    if (remaining <= d) return t + (2 * remaining * sq) / SPEED_OF_LIGHT;
+    remaining -= d;
+    t += (2 * d * sq) / SPEED_OF_LIGHT;
+  }
+  const tail = layers.length > 0 ? layers[layers.length - 1].permittivity : bulkPermittivity;
+  return t + (2 * remaining * Math.sqrt(Math.max(1, tail))) / SPEED_OF_LIGHT;
 }
 
 export function sampleToDepth(
   sampleIndex: number,
   surfaceSample: number,
   sampleIntervalS: number,
-  permittivity: number
+  layers: readonly VelocityLayer[],
+  bulkPermittivity = 3.15,
 ): number {
-  const deltaSamples = sampleIndex - surfaceSample;
-  if (deltaSamples <= 0) return 0;
-  const twoWayTime = deltaSamples * sampleIntervalS;
-  return timeToDepth(twoWayTime, permittivity).depthMeters;
+  return timeToDepth((sampleIndex - surfaceSample) * sampleIntervalS, layers, bulkPermittivity);
 }
 
 export function depthToSample(
   depthM: number,
   surfaceSample: number,
   sampleIntervalS: number,
-  permittivity: number
+  layers: readonly VelocityLayer[],
+  bulkPermittivity = 3.15,
 ): number {
-  const twoWayTime = depthToTime(depthM, permittivity);
-  return surfaceSample + twoWayTime / sampleIntervalS;
-}
-
-export function buildDepthAxis(
-  numSamples: number,
-  surfaceSample: number,
-  sampleIntervalS: number,
-  permittivity: number
-): Float32Array {
-  const axis = new Float32Array(numSamples);
-  for (let i = 0; i < numSamples; i++) {
-    axis[i] = sampleToDepth(i, surfaceSample, sampleIntervalS, permittivity);
-  }
-  return axis;
+  return surfaceSample + depthToTime(depthM, layers, bulkPermittivity) / sampleIntervalS;
 }

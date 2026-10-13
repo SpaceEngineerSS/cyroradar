@@ -1,137 +1,90 @@
-/* CRYORADAR — Scientific Colormaps (v6.0)
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* Colour tables for radargrams and derived maps.
  *
- * Includes standard geophysical palettes for seismic/GPR
- * interpretation (Petrel/OpendTect compatible). */
+ * Each table has 256 entries, stored twice: RGBA bytes (for textures) and as
+ * packed 32-bit pixels in the platform's byte order (for ImageData writes, one
+ * store per pixel). Grayscale is the default because that is how radargrams
+ * are read in the literature; the others help with low-contrast reflectors. */
 
 import type { ColormapId } from '../../types/types';
 
 export interface Colormap {
   id: ColormapId;
   name: string;
-  data: Uint8Array;
+  /** 256 × RGBA bytes. */
+  rgba: Uint8Array;
+  /** 256 packed pixels matching ImageData's byte layout. */
+  packed: Uint32Array;
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
+type Stop = [pos: number, hex: string];
+
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function buildGradient(stops: { pos: number; r: number; g: number; b: number }[]): Uint8Array {
-  const out = new Uint8Array(256 * 4);
+function build(id: ColormapId, name: string, stops: Stop[]): Colormap {
+  const rgba = new Uint8Array(256 * 4);
+  const packed = new Uint32Array(256);
+  const rgb = stops.map(([p, h]) => [p, ...hexToRgb(h)] as const);
   for (let i = 0; i < 256; i++) {
     const t = i / 255;
-    let lo = stops[0], hi = stops[stops.length - 1];
-    for (let s = 0; s < stops.length - 1; s++) {
-      if (t >= stops[s].pos && t <= stops[s + 1].pos) {
-        lo = stops[s];
-        hi = stops[s + 1];
-        break;
-      }
-    }
-    const segT = hi.pos > lo.pos ? (t - lo.pos) / (hi.pos - lo.pos) : 0;
-    out[i * 4] = Math.round(lerp(lo.r, hi.r, segT));
-    out[i * 4 + 1] = Math.round(lerp(lo.g, hi.g, segT));
-    out[i * 4 + 2] = Math.round(lerp(lo.b, hi.b, segT));
-    out[i * 4 + 3] = 255;
+    let j = 0;
+    while (j < rgb.length - 2 && t > rgb[j + 1][0]) j++;
+    const a = rgb[j];
+    const b = rgb[j + 1];
+    const f = b[0] > a[0] ? Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0]))) : 0;
+    const r = Math.round(a[1] + (b[1] - a[1]) * f);
+    const g = Math.round(a[2] + (b[2] - a[2]) * f);
+    const bl = Math.round(a[3] + (b[3] - a[3]) * f);
+    rgba.set([r, g, bl, 255], i * 4);
+    packed[i] = LITTLE_ENDIAN ? ((255 << 24) | (bl << 16) | (g << 8) | r) >>> 0 : ((r << 24) | (g << 16) | (bl << 8) | 255) >>> 0;
   }
-  return out;
+  return { id, name, rgba, packed };
 }
 
-const GRAYSCALE = buildGradient([
-  { pos: 0, r: 0, g: 0, b: 0 },
-  { pos: 1, r: 255, g: 255, b: 255 },
-]);
-
-const PLASMA = buildGradient([
-  { pos: 0.0, r: 13, g: 8, b: 135 },
-  { pos: 0.15, r: 84, g: 2, b: 163 },
-  { pos: 0.3, r: 139, g: 10, b: 165 },
-  { pos: 0.45, r: 185, g: 50, b: 137 },
-  { pos: 0.6, r: 219, g: 92, b: 104 },
-  { pos: 0.75, r: 244, g: 136, b: 73 },
-  { pos: 0.9, r: 254, g: 188, b: 43 },
-  { pos: 1.0, r: 240, g: 249, b: 33 },
-]);
-
-const INFERNO = buildGradient([
-  { pos: 0.0, r: 0, g: 0, b: 4 },
-  { pos: 0.15, r: 40, g: 11, b: 84 },
-  { pos: 0.3, r: 101, g: 21, b: 110 },
-  { pos: 0.45, r: 159, g: 42, b: 99 },
-  { pos: 0.6, r: 212, g: 72, b: 66 },
-  { pos: 0.75, r: 245, g: 125, b: 21 },
-  { pos: 0.9, r: 250, g: 193, b: 39 },
-  { pos: 1.0, r: 252, g: 255, b: 164 },
-]);
-
-const VIRIDIS = buildGradient([
-  { pos: 0.0, r: 68, g: 1, b: 84 },
-  { pos: 0.15, r: 72, g: 36, b: 117 },
-  { pos: 0.3, r: 56, g: 88, b: 140 },
-  { pos: 0.45, r: 38, g: 130, b: 142 },
-  { pos: 0.6, r: 31, g: 158, b: 137 },
-  { pos: 0.75, r: 78, g: 195, b: 107 },
-  { pos: 0.9, r: 163, g: 225, b: 57 },
-  { pos: 1.0, r: 253, g: 231, b: 37 },
-]);
-
-const RADAR = buildGradient([
-  { pos: 0.0, r: 0, g: 0, b: 10 },
-  { pos: 0.2, r: 8, g: 20, b: 60 },
-  { pos: 0.4, r: 20, g: 60, b: 140 },
-  { pos: 0.55, r: 40, g: 120, b: 200 },
-  { pos: 0.7, r: 100, g: 180, b: 230 },
-  { pos: 0.85, r: 200, g: 220, b: 240 },
-  { pos: 1.0, r: 255, g: 255, b: 255 },
-]);
-
-const SEISMIC = buildGradient([
-  { pos: 0.0, r: 0, g: 0, b: 180 },
-  { pos: 0.2, r: 60, g: 80, b: 220 },
-  { pos: 0.4, r: 180, g: 200, b: 240 },
-  { pos: 0.5, r: 255, g: 255, b: 255 },
-  { pos: 0.6, r: 240, g: 200, b: 180 },
-  { pos: 0.8, r: 220, g: 80, b: 60 },
-  { pos: 1.0, r: 180, g: 0, b: 0 },
-]);
-
-const GPR = buildGradient([
-  { pos: 0.0, r: 0, g: 30, b: 0 },
-  { pos: 0.2, r: 20, g: 100, b: 20 },
-  { pos: 0.4, r: 80, g: 170, b: 40 },
-  { pos: 0.6, r: 200, g: 200, b: 40 },
-  { pos: 0.8, r: 240, g: 140, b: 20 },
-  { pos: 1.0, r: 200, g: 30, b: 10 },
-]);
-
-const ALL_COLORMAPS: Colormap[] = [
-  { id: 'grayscale', name: 'Grayscale', data: GRAYSCALE },
-  { id: 'plasma', name: 'Plasma', data: PLASMA },
-  { id: 'inferno', name: 'Inferno', data: INFERNO },
-  { id: 'viridis', name: 'Viridis', data: VIRIDIS },
-  { id: 'radar', name: 'Radar Blue', data: RADAR },
-  { id: 'seismic', name: 'Seismic (R-W-B)', data: SEISMIC },
-  { id: 'gpr', name: 'GPR', data: GPR },
+const ALL: Colormap[] = [
+  build('grayscale', 'Grayscale', [[0, '#000000'], [1, '#ffffff']]),
+  build('ember', 'Ember', [[0, '#0b0a09'], [0.22, '#2f1710'], [0.45, '#7a3416'], [0.65, '#c75a26'], [0.82, '#e5a35b'], [1, '#f6ecdc']]),
+  build('ice', 'Ice', [[0, '#06090c'], [0.25, '#15283a'], [0.5, '#2f5a74'], [0.72, '#6f9db2'], [0.88, '#bcd6df'], [1, '#f5f8f7']]),
+  build('viridis', 'Viridis', [
+    [0, '#440154'], [0.13, '#482878'], [0.25, '#3e4989'], [0.38, '#31688e'], [0.5, '#26828e'],
+    [0.63, '#1f9e89'], [0.75, '#35b779'], [0.88, '#6ece58'], [1, '#fde725'],
+  ]),
+  build('magma', 'Magma', [
+    [0, '#000004'], [0.13, '#1c1044'], [0.25, '#4f127b'], [0.38, '#812581'], [0.5, '#b5367a'],
+    [0.63, '#e55064'], [0.75, '#fb8761'], [0.88, '#fec287'], [1, '#fcfdbf'],
+  ]),
+  build('diverging', 'Diverging', [[0, '#21405f'], [0.25, '#6d8fa8'], [0.5, '#efebe3'], [0.75, '#c9845d'], [1, '#7c2f14']]),
 ];
 
-const colormapMap = new Map(ALL_COLORMAPS.map(c => [c.id, c]));
+const BY_ID = new Map(ALL.map(c => [c.id, c]));
 
 export function getColormap(id: ColormapId): Colormap {
-  return colormapMap.get(id) ?? ALL_COLORMAPS[0];
+  return BY_ID.get(id) ?? ALL[0];
 }
 
 export function getAllColormaps(): readonly Colormap[] {
-  return ALL_COLORMAPS;
+  return ALL;
 }
 
-export function mapValueToColor(
-  value: number,
-  min: number,
-  max: number,
-  colormap: Uint8Array
-): [number, number, number, number] {
-  const range = max - min;
-  const normalized = range > 0 ? Math.max(0, Math.min(1, (value - min) / range)) : 0;
-  const idx = Math.round(normalized * 255) * 4;
-  return [colormap[idx], colormap[idx + 1], colormap[idx + 2], colormap[idx + 3]];
+/** Index into a 256-entry table for a value between lo and hi. */
+export function colorIndex(value: number, lo: number, hi: number): number {
+  const r = hi - lo;
+  if (!(r > 0)) return 0;
+  const t = (value - lo) / r;
+  return t <= 0 ? 0 : t >= 1 ? 255 : (t * 255 + 0.5) | 0;
+}
+
+/** CSS gradient for legends and swatches. */
+export function colormapCss(id: ColormapId, direction = 'to right'): string {
+  const c = getColormap(id);
+  const stops: string[] = [];
+  for (let i = 0; i <= 8; i++) {
+    const k = Math.round((i / 8) * 255) * 4;
+    stops.push(`rgb(${c.rgba[k]} ${c.rgba[k + 1]} ${c.rgba[k + 2]}) ${(i / 8) * 100}%`);
+  }
+  return `linear-gradient(${direction}, ${stops.join(', ')})`;
 }

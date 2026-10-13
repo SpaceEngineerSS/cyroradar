@@ -1,0 +1,247 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/ibm-plex-sans/wght.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/* CryoRadar visual language
+ *
+ * A lab instrument, not a spaceship: warm graphite surfaces, hairline rules,
+ * one accent (Mars oxide) for things you can act on, one signal colour (amber)
+ * for things the data is telling you. Numbers are always mono and tabular.
+ * No blur, no glow, no gradients outside of colour scales. */
+
+@theme {
+  --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --color-bg: var(--c-bg);
+  --color-raised: var(--c-raised);
+  --color-sunken: var(--c-sunken);
+  --color-hover: var(--c-hover);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-ink: var(--c-ink);
+  --color-dim: var(--c-dim);
+  --color-faint: var(--c-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-signal: var(--c-signal);
+  --color-ok: var(--c-ok);
+  --color-danger: var(--c-danger);
+  --color-water: var(--c-water);
+  --color-ice: var(--c-ice);
+  --color-clay: var(--c-clay);
+  --color-clutter: var(--c-clutter);
+
+  --text-2xs: 11px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 19px;
+  --text-base: 14px;
+  --text-base--line-height: 21px;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-bg: #121110;
+  --c-raised: #191816;
+  --c-sunken: #0c0b0a;
+  --c-hover: #23211e;
+  --c-line: #2c2925;
+  --c-line-strong: #433e37;
+  --c-ink: #ece7dd;
+  --c-dim: #a59e92;
+  --c-faint: #878075;
+  --c-accent: #d9692f;
+  --c-accent-ink: #160c06;
+  --c-accent-soft: rgb(217 105 47 / 0.14);
+  --c-signal: #e2a43b;
+  --c-ok: #8fb07a;
+  --c-danger: #df6a52;
+  --c-water: #6f9fcb;
+  --c-ice: #b4ccd6;
+  --c-clay: #9aa66a;
+  --c-clutter: #b98bb0;
+  --c-plot-bg: #080807;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --c-bg: #f2eee5;
+  --c-raised: #faf8f2;
+  --c-sunken: #e8e2d5;
+  --c-hover: #ebe5d8;
+  --c-line: #d8d0c0;
+  --c-line-strong: #b9af9c;
+  --c-ink: #1c1a17;
+  --c-dim: #5a5348;
+  --c-faint: #6e675b;
+  --c-accent: #b04b18;
+  --c-accent-ink: #fffaf3;
+  --c-accent-soft: rgb(176 75 24 / 0.1);
+  --c-signal: #9a6a0e;
+  --c-ok: #4e7438;
+  --c-danger: #b23d26;
+  --c-water: #2f6596;
+  --c-ice: #4f7f93;
+  --c-clay: #5f6c2c;
+  --c-clutter: #8a4f7f;
+  --c-plot-bg: #0b0a09;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'kern', 'liga';
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--c-bg);
+    color: var(--c-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 19px;
+  }
+
+  ::selection {
+    background: var(--c-accent-soft);
+  }
+
+  :focus-visible {
+    outline: 1.5px solid var(--c-accent);
+    outline-offset: 1px;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-line-strong) transparent;
+  }
+}
+
+@layer components {
+  /* Section label: small caps feel without relying on font small caps. */
+  .label {
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--c-faint);
+  }
+
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'zero' 0;
+  }
+
+  .hairline {
+    border-color: var(--c-line);
+  }
+
+  /* Plot frame: the dark well every chart sits in, in both themes. */
+  .plot {
+    background: var(--c-plot-bg);
+  }
+
+  .field {
+    height: 28px;
+    width: 100%;
+    border: 1px solid var(--c-line);
+    border-radius: 2px;
+    background: var(--c-sunken);
+    padding: 0 8px;
+    color: var(--c-ink);
+    font-size: 13px;
+  }
+
+  .field:hover {
+    border-color: var(--c-line-strong);
+  }
+
+  .field:focus-visible {
+    outline: none;
+    border-color: var(--c-accent);
+  }
+
+  input[type='range'].slider {
+    appearance: none;
+    width: 100%;
+    height: 18px;
+    background: transparent;
+  }
+
+  input[type='range'].slider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--c-line-strong);
+  }
+
+  input[type='range'].slider::-moz-range-track {
+    height: 2px;
+    background: var(--c-line-strong);
+  }
+
+  input[type='range'].slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 9px;
+    height: 14px;
+    margin-top: -6px;
+    background: var(--c-ink);
+    border: 0;
+    border-radius: 1px;
+  }
+
+  input[type='range'].slider::-moz-range-thumb {
+    width: 9px;
+    height: 14px;
+    background: var(--c-ink);
+    border: 0;
+    border-radius: 1px;
+  }
+
+  input[type='range'].slider:focus-visible {
+    outline: none;
+  }
+
+  input[type='range'].slider:focus-visible::-webkit-slider-thumb {
+    background: var(--c-accent);
+  }
+
+  input[type='range'].slider:focus-visible::-moz-range-thumb {
+    background: var(--c-accent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

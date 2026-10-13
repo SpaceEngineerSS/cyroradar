@@ -1,94 +1,45 @@
-/* CRYORADAR — Signal Attenuation Model
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* Dielectric loss.
  *
- * Power loss per unit distance for an EM wave in a lossy dielectric:
- *   α = (2πf · tan δ · √εᵣ) / c    [Np/m]
- *   α_dB = 8.686 · α                [dB/m]
+ * Field attenuation constant of a plane wave in a non-magnetic lossy medium
+ * with complex permittivity ε = ε'(1 − j tanδ):
  *
- * Two-way attenuation through a layer of thickness d:
- *   A = 2 · α_dB · d   [dB]
+ *   α = (ω/c) · √(ε'/2) · √(√(1 + tan²δ) − 1)          [Np/m]
  *
- * Validation (SHARAD, 20 MHz, water ice: εᵣ=3.15, tan δ=10⁻³):
- *   α ≈ 7.43×10⁻⁴ Np/m → 0.00645 dB/m
- *   1 km two-way → ~12.9 dB (consistent with published values)
+ * For tanδ ≪ 1 this reduces to α ≈ π f √ε' tanδ / c. Power falls as e^(−2αz),
+ * so the power loss in decibels is 20·log10(e)·α = 8.686·α dB/m.
  *
- * References:
- *   Seu et al. (2007), JGR 112, E05S05
- *   Pettinelli et al. (2003), JGR 108, 8029 */
+ * Check (20 MHz, water ice ε' = 3.15, tanδ = 1e-3):
+ *   α ≈ 3.72e-4 Np/m → 3.23e-3 dB/m → 6.5 dB two-way through 1 km.
+ *
+ *   Ulaby, Moore & Fung (1986), Microwave Remote Sensing, vol. III, App. E
+ *   Seu et al. (2007), JGR 112, E05S05 */
 
 import { SPEED_OF_LIGHT } from './constants';
-import type { AttenuationResult } from '../../types/types';
 
-const NP_TO_DB = 8.685889638;
+const NP_TO_DB = 20 / Math.LN10;
 
-export function attenuationCoefficient(
-  frequencyHz: number,
-  permittivity: number,
-  lossTangent: number
-): number {
-  if (frequencyHz <= 0) throw new RangeError('Frequency must be > 0');
-  if (permittivity < 1) throw new RangeError('Permittivity must be ≥ 1');
-  if (lossTangent < 0) throw new RangeError('Loss tangent must be ≥ 0');
-
-  return (2 * Math.PI * frequencyHz * lossTangent * Math.sqrt(permittivity)) / SPEED_OF_LIGHT;
+export function attenuationNpPerMeter(frequencyHz: number, permittivity: number, lossTangent: number): number {
+  if (!(frequencyHz > 0)) throw new RangeError('Frequency must be > 0');
+  if (!(permittivity >= 1)) throw new RangeError('Permittivity must be ≥ 1');
+  if (!(lossTangent >= 0)) throw new RangeError('Loss tangent must be ≥ 0');
+  const omega = 2 * Math.PI * frequencyHz;
+  return (omega / SPEED_OF_LIGHT) * Math.sqrt(permittivity / 2) * Math.sqrt(Math.sqrt(1 + lossTangent * lossTangent) - 1);
 }
 
-export function attenuationDbPerMeter(
-  frequencyHz: number,
-  permittivity: number,
-  lossTangent: number
-): number {
-  return attenuationCoefficient(frequencyHz, permittivity, lossTangent) * NP_TO_DB;
+/** One-way power loss per metre, dB/m. */
+export function lossDbPerMeter(frequencyHz: number, permittivity: number, lossTangent: number): number {
+  return attenuationNpPerMeter(frequencyHz, permittivity, lossTangent) * NP_TO_DB;
 }
 
-export function layerAttenuation(
-  frequencyHz: number,
-  permittivity: number,
-  lossTangent: number,
-  thicknessM: number
-): AttenuationResult {
-  const alphaDbPerMeter = attenuationDbPerMeter(frequencyHz, permittivity, lossTangent);
-  const oneWay = alphaDbPerMeter * thicknessM;
-
-  return {
-    alphaDbPerMeter,
-    totalLossDb: oneWay,
-    twoWayLossDb: 2 * oneWay,
-  };
-}
-
-export interface AttenuationLayerDef {
+export interface LossLayer {
   permittivity: number;
   lossTangent: number;
   thicknessM: number;
 }
 
-export function totalAttenuation(
-  frequencyHz: number,
-  layers: AttenuationLayerDef[]
-): { perLayer: AttenuationResult[]; totalTwoWayDb: number } {
-  let totalTwoWayDb = 0;
-  const perLayer: AttenuationResult[] = [];
-
-  for (const layer of layers) {
-    const result = layerAttenuation(
-      frequencyHz,
-      layer.permittivity,
-      layer.lossTangent,
-      layer.thicknessM
-    );
-    perLayer.push(result);
-    totalTwoWayDb += result.twoWayLossDb;
-  }
-
-  return { perLayer, totalTwoWayDb };
-}
-
-export function signalPowerAtDepth(
-  initialPowerDb: number,
-  frequencyHz: number,
-  layers: AttenuationLayerDef[]
-): number {
-  const { totalTwoWayDb } = totalAttenuation(frequencyHz, layers);
-  return initialPowerDb - totalTwoWayDb;
+/** Two-way dielectric loss through a stack of layers, dB (positive number). */
+export function twoWayLossDb(frequencyHz: number, layers: readonly LossLayer[]): number {
+  let total = 0;
+  for (const l of layers) total += 2 * lossDbPerMeter(frequencyHz, l.permittivity, l.lossTangent) * Math.max(0, l.thicknessM);
+  return total;
 }

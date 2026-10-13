@@ -1,16 +1,25 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    { "source": "/pds-data/:match*", "destination": "https://pds-geosciences.wustl.edu/:match*" },
+    { "source": "/((?!assets/|pds-data/|sw\.js|manifest\.webmanifest|favicon\.svg|icon-|og\.png|robots\.txt).*)", "destination": "/index.html" }
+  ],
+  "headers": [
     {
-      "source": "/pds-data/:match*",
-      "destination": "https://pds-geosciences.wustl.edu/:match*"
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {
-      "source": "/pds-ode-files/:match*",
-      "destination": "https://ode.rsl.wustl.edu/:match*"
+      "source": "/sw.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     },
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
     }
   ]
 }

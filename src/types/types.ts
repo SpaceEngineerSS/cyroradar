@@ -1,10 +1,10 @@
-/* CRYORADAR Type Definitions (Production)
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
- *
- * Production: Mars-focused architecture with PolSAR, Monte Carlo UQ,
- * FWI, and volumetric rendering for Martian subsurface exploration. */
+/* Shared domain types. */
 
-/* ── Dielectric & Material ──────────────────────────────── */
+import type { InstrumentId } from '../core/physics/constants';
+
+export type { InstrumentId };
+
+/* Materials ---------------------------------------------------------------- */
 
 export interface DielectricMaterial {
   id: string;
@@ -18,12 +18,16 @@ export interface DielectricMaterial {
   reference: string;
 }
 
+/** One layer of the user's depth model, ordered from the surface down. */
 export interface SubsurfaceLayer {
   id: string;
   materialId: string;
-  thickness: number;
-  topSample: number;
-  bottomSample: number;
+  /** Overrides the material name, e.g. for layers copied from a scene model. */
+  label?: string;
+  permittivity: number;
+  lossTangent: number;
+  thicknessM: number;
+  /** Picked base horizon of this layer. */
   picks: LayerPick[];
 }
 
@@ -32,19 +36,7 @@ export interface LayerPick {
   sampleIndex: number;
 }
 
-/* ── Radar Metadata ─────────────────────────────────────── */
-
-export interface RadargramMetadata {
-  instrument: 'SHARAD' | 'MARSIS';
-  orbitNumber: number;
-  productId: string;
-  acquisitionDate: string;
-  region: string;
-  description: string;
-  centerLat: number;
-  centerLon: number;
-  references: ScientificReference[];
-}
+/* Datasets ----------------------------------------------------------------- */
 
 export interface ScientificReference {
   authors: string;
@@ -54,11 +46,29 @@ export interface ScientificReference {
   doi?: string;
 }
 
-/* ── Radar Data ─────────────────────────────────────────── */
+export type DatasetSource = 'synthetic' | 'pds' | 'file';
+
+export interface RadargramMetadata {
+  instrument: InstrumentId;
+  source: DatasetSource;
+  orbitNumber: number;
+  productId: string;
+  acquisitionDate: string;
+  region: string;
+  title: string;
+  description: string;
+  centerLat: number;
+  centerLon: number;
+  frequencyHz: number;
+  references: ScientificReference[];
+  /** How far the power values can be trusted, shown next to every derived number. */
+  calibration: 'model' | 'relative' | 'display';
+}
 
 export interface GeometryData {
   latitudes: Float64Array;
   longitudes: Float64Array;
+  /** Surface elevation relative to the reference, metres. */
   surfaceElevation: Float32Array;
   spacecraftAltitude: Float32Array;
 }
@@ -66,7 +76,10 @@ export interface GeometryData {
 export interface RadargramData {
   width: number;
   height: number;
+  /** Round-trip delay between samples, seconds. */
   sampleInterval: number;
+  traceSpacingM: number;
+  /** Echo power in dB, row-major (sample * width + trace). */
   data: Float32Array;
   powerMin: number;
   powerMax: number;
@@ -76,37 +89,45 @@ export interface SurfaceEchoData {
   indices: Uint16Array;
 }
 
+/** Layer model the synthetic generator used; drives the guided tour. */
+export interface GroundTruth {
+  layers: {
+    label: string;
+    permittivity: number;
+    lossTangent: number;
+    thicknessM: number;
+  }[];
+  /** For each interface below the surface, the sample index per trace. */
+  interfaces: Uint16Array[];
+  /** Trace range of the bright target, if the scene has one. */
+  target?: { traceStart: number; traceEnd: number; label: string };
+}
+
 export interface CryoDataset {
   metadata: RadargramMetadata;
   geometry: GeometryData;
   radargram: RadargramData;
   surfaceEcho: SurfaceEchoData;
+  truth?: GroundTruth;
 }
 
-export interface DatasetSummary {
-  id: string;
-  name: string;
-  region: string;
-  instrument: 'SHARAD' | 'MARSIS';
-  description: string;
-  centerLat: number;
-  centerLon: number;
-  thumbnail?: string;
-}
+/* Interaction -------------------------------------------------------------- */
 
-/* ── Interaction ────────────────────────────────────────── */
-
-export type InteractionMode = 'pan' | 'pick' | 'measure' | 'roi-select';
-export type ColormapId = 'grayscale' | 'plasma' | 'inferno' | 'viridis' | 'radar' | 'seismic' | 'gpr';
+export type InteractionMode = 'pan' | 'pick' | 'measure' | 'roi';
+export type ColormapId = 'grayscale' | 'ember' | 'ice' | 'viridis' | 'magma' | 'diverging';
 export type ViewMode = 'explorer' | 'analyst';
+export type MainView = 'radargram' | 'ascope' | 'map' | 'scene';
 
-/* ── Anomaly Detection ──────────────────────────────────── */
+export interface ViewportState {
+  offsetX: number;
+  offsetY: number;
+  scaleX: number;
+  scaleY: number;
+}
 
-export type AnomalyClass =
-  | 'geological-interface'
-  | 'ice-deposit'
-  | 'wet-sediment'
-  | 'liquid-water';
+/* Detection ---------------------------------------------------------------- */
+
+export type AnomalyClass = 'dry-contact' | 'hydrated' | 'wet-sediment' | 'liquid-water';
 
 export interface HypothesisMatrix {
   pLiquidWater: number;
@@ -115,30 +136,48 @@ export interface HypothesisMatrix {
   dominantHypothesis: 'liquid-water' | 'smectite-clay' | 'clutter';
 }
 
-export interface CRISMPixel {
-  clayIndex: number;
-  hydrationIndex: number;
-  mineralClass: 'none' | 'phyllosilicate' | 'sulfate' | 'hydrated-silica';
+export interface DetectionParams {
+  /** Minimum estimated basal reflectivity, dB. */
+  thresholdDb: number;
+  /** Overburden permittivity and loss tangent used for the correction. */
+  hostPermittivity: number;
+  hostLossTangent: number;
+  /** Ignore echoes shallower than this, metres below the surface. */
+  minDepthM: number;
 }
 
 export interface AnomalyResult {
   traceIndex: number;
   sampleIndex: number;
-  surfacePower: number;
-  basalPower: number;
-  powerRatio: number;
+  surfacePowerDb: number;
+  basalPowerDb: number;
+  /** Basal minus surface echo, dB. */
+  relativePowerDb: number;
+  /** Basal reflectivity after surface and loss correction, dB. */
+  basalReflectivityDb: number;
   apparentPermittivity: number;
   classification: AnomalyClass;
   depthM: number;
   latitude: number;
   longitude: number;
+  snrDb: number;
   confidence: number;
   clutterWarning: boolean;
   surfaceSlopeDeg: number;
   hypothesis: HypothesisMatrix;
 }
 
-/* ── PolSAR (Polarimetric SAR) ──────────────────────────── */
+/* Context mineralogy (simulated) -------------------------------------------- */
+
+export type MineralClass = 'none' | 'phyllosilicate' | 'sulfate' | 'hydrated-silica';
+
+export interface CRISMPixel {
+  clayIndex: number;
+  hydrationIndex: number;
+  mineralClass: MineralClass;
+}
+
+/* Polarimetry (simulated) --------------------------------------------------- */
 
 export interface StokesVector {
   s0: number;
@@ -160,26 +199,28 @@ export interface CloudePottierParams {
   anisotropy: number;
 }
 
-export interface PolSARPixel {
-  stokes: StokesVector;
-  pauli: PauliComponents;
-  cloudePottier: CloudePottierParams;
-}
-
+/** Channel images on a (possibly decimated) grid. */
 export interface PolSARResult {
   width: number;
   height: number;
-  pixels: PolSARPixel[];
+  /** Decimation factors relative to the radargram. */
+  stepX: number;
+  stepY: number;
+  entropy: Float32Array;
+  alpha: Float32Array;
+  anisotropy: Float32Array;
+  surface: Float32Array;
+  dihedral: Float32Array;
+  volume: Float32Array;
+  stats: {
+    meanEntropy: number;
+    meanAlphaDeg: number;
+    meanAnisotropy: number;
+    fractions: { surface: number; dihedral: number; volume: number };
+  };
 }
 
-/* ── Uncertainty Quantification ─────────────────────────── */
-
-export interface UQPixel {
-  meanDepthM: number;
-  stdDevM: number;
-  coefficientOfVariation: number;
-  confidenceLevel: 'high' | 'moderate' | 'low';
-}
+/* Uncertainty -------------------------------------------------------------- */
 
 export interface UQResult {
   anomalyIndex: number;
@@ -187,10 +228,15 @@ export interface UQResult {
   stdDevM: number;
   percentile5: number;
   percentile95: number;
+  meanBasalPermittivity: number;
+  basalPermittivity5: number;
+  basalPermittivity95: number;
+  /** Fraction of samples with basal ε ≥ 40. */
+  pWet: number;
   nSamples: number;
 }
 
-/* ── FWI (Full Waveform Inversion) ──────────────────────── */
+/* Inversion ---------------------------------------------------------------- */
 
 export interface ROIBounds {
   traceStart: number;
@@ -201,23 +247,17 @@ export interface ROIBounds {
 
 export interface FWIResult {
   roi: ROIBounds;
-  invertedPermittivity: Float32Array;
-  residualNorm: number;
+  /** Inverted permittivity on the coarse grid (nx × nz), row-major. */
+  permittivity: Float32Array;
+  nx: number;
+  nz: number;
+  misfitHistory: number[];
   iterations: number;
   elapsedMs: number;
+  backend: 'webgpu' | 'cpu';
 }
 
-/* ── Volumetric Data ────────────────────────────────────── */
-
-export interface VolumeData {
-  sizeX: number;
-  sizeY: number;
-  sizeZ: number;
-  voxels: Float32Array;
-  bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number; maxDepthM: number };
-}
-
-/* ── Discovery & Log ────────────────────────────────────── */
+/* Log ---------------------------------------------------------------------- */
 
 export interface DiscoveryEntry {
   id: string;
@@ -229,140 +269,11 @@ export interface DiscoveryEntry {
   latitude: number;
   longitude: number;
   apparentPermittivity: number;
+  basalReflectivityDb: number;
   classification: AnomalyClass;
   confidence: number;
+  pLiquidWater: number;
+  pSmectiteClay: number;
+  pClutter: number;
   notes: string;
 }
-
-export interface ViewportState {
-  offsetX: number;
-  offsetY: number;
-  scaleX: number;
-  scaleY: number;
-}
-
-/* ── Physics Results ────────────────────────────────────── */
-
-export interface FresnelResult {
-  reflectionCoefficient: number;
-  reflectionDb: number;
-  transmissionCoefficient: number;
-}
-
-export interface DepthResult {
-  depthMeters: number;
-  travelTimeUs: number;
-  velocityMps: number;
-}
-
-export interface AttenuationResult {
-  alphaDbPerMeter: number;
-  totalLossDb: number;
-  twoWayLossDb: number;
-}
-
-export interface LayerAnalysis {
-  layerIndex: number;
-  material: DielectricMaterial;
-  thickness: number;
-  depthToTop: number;
-  depthToBottom: number;
-  fresnel: FresnelResult;
-  attenuation: AttenuationResult;
-}
-
-/* ── PDS Track Search ───────────────────────────────────── */
-
-export interface PDSTrackResult {
-  productId: string;
-  instrument: 'SHARAD' | 'MARSIS';
-  orbitNumber: number;
-  startLat: number;
-  startLon: number;
-  endLat: number;
-  endLon: number;
-  acquisitionDate: string;
-  dataUrl: string;
-}
-
-/* ── Application State ──────────────────────────────────── */
-
-export interface AppState {
-  dataset: CryoDataset | null;
-  datasetId: string | null;
-  loading: boolean;
-  viewport: ViewportState;
-  mode: InteractionMode;
-  viewMode: ViewMode;
-  colormap: ColormapId;
-  contrastMin: number;
-  contrastMax: number;
-  layers: SubsurfaceLayer[];
-  activeLayerIndex: number | null;
-  showMolaTopo: boolean;
-  showDepthGrid: boolean;
-  showLayerPicks: boolean;
-  showClutter: boolean;
-  show3D: boolean;
-  showAnomalyOverlay: boolean;
-  operatingFrequencyMhz: number;
-  anomalies: AnomalyResult[];
-  discoveries: DiscoveryEntry[];
-  showMigration: boolean;
-  migratedData: Float32Array | null;
-  migrationRunning: boolean;
-  migrationElapsedMs: number;
-  crismData: CRISMPixel[] | null;
-  showStaticCorrection: boolean;
-  correctedData: Float32Array | null;
-  tecUnits: number;
-  polsarData: PolSARResult | null;
-  showPolSAR: boolean;
-  uqResults: UQResult[];
-  showConfidenceMap: boolean;
-  fwiResult: FWIResult | null;
-  fwiRunning: boolean;
-  roiSelection: ROIBounds | null;
-  volumeData: VolumeData | null;
-  showVolume: boolean;
-}
-
-export type AppAction =
-  | { type: 'SET_DATASET'; dataset: CryoDataset; id: string }
-  | { type: 'SET_LOADING'; loading: boolean }
-  | { type: 'SET_VIEWPORT'; viewport: ViewportState }
-  | { type: 'SET_MODE'; mode: InteractionMode }
-  | { type: 'SET_VIEW_MODE'; viewMode: ViewMode }
-  | { type: 'SET_COLORMAP'; colormap: ColormapId }
-  | { type: 'SET_CONTRAST'; min: number; max: number }
-  | { type: 'ADD_LAYER'; layer: SubsurfaceLayer }
-  | { type: 'UPDATE_LAYER'; index: number; layer: Partial<SubsurfaceLayer> }
-  | { type: 'REMOVE_LAYER'; index: number }
-  | { type: 'SET_ACTIVE_LAYER'; index: number | null }
-  | { type: 'ADD_PICK'; layerIndex: number; pick: LayerPick }
-  | { type: 'TOGGLE_MOLA' }
-  | { type: 'TOGGLE_DEPTH_GRID' }
-  | { type: 'TOGGLE_LAYER_PICKS' }
-  | { type: 'TOGGLE_CLUTTER' }
-  | { type: 'TOGGLE_3D' }
-  | { type: 'TOGGLE_ANOMALY_OVERLAY' }
-  | { type: 'SET_FREQUENCY'; mhz: number }
-  | { type: 'SET_ANOMALIES'; anomalies: AnomalyResult[] }
-  | { type: 'ADD_DISCOVERY'; discovery: DiscoveryEntry }
-  | { type: 'CLEAR_DISCOVERIES' }
-  | { type: 'TOGGLE_MIGRATION' }
-  | { type: 'SET_MIGRATED_DATA'; data: Float32Array; elapsedMs: number }
-  | { type: 'SET_MIGRATION_RUNNING'; running: boolean }
-  | { type: 'SET_CRISM_DATA'; data: CRISMPixel[] }
-  | { type: 'TOGGLE_STATIC_CORRECTION' }
-  | { type: 'SET_CORRECTED_DATA'; data: Float32Array }
-  | { type: 'SET_TEC'; tec: number }
-  | { type: 'SET_POLSAR_DATA'; data: PolSARResult }
-  | { type: 'TOGGLE_POLSAR' }
-  | { type: 'SET_UQ_RESULTS'; results: UQResult[] }
-  | { type: 'TOGGLE_CONFIDENCE_MAP' }
-  | { type: 'SET_FWI_RESULT'; result: FWIResult }
-  | { type: 'SET_FWI_RUNNING'; running: boolean }
-  | { type: 'SET_ROI_SELECTION'; roi: ROIBounds | null }
-  | { type: 'SET_VOLUME_DATA'; data: VolumeData }
-  | { type: 'TOGGLE_VOLUME' };

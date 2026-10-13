@@ -1,94 +1,37 @@
-/* CRYORADAR — Fresnel Reflection Coefficients
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* Normal-incidence Fresnel reflection between two non-magnetic dielectrics.
  *
- * Normal-incidence power reflection at a planar interface.
- * Derived from boundary conditions of Maxwell's equations:
- *   v = c / √(εᵣ·μᵣ),  μᵣ ≈ 1 for non-magnetic media
- *   impedance η = η₀ / √εᵣ
- *   reflection coefficient r = (η₂ − η₁)/(η₂ + η₁)
- *   power R = |r|² = ((√ε₁ − √ε₂)/(√ε₁ + √ε₂))²
+ *   r = (√ε₁ − √ε₂) / (√ε₁ + √ε₂),   R = r²,   T = 1 − R
  *
- * References:
- *   Orosei et al. (2018), Science 361, 490–493
- *   Seu et al. (2007), JGR 112, E05S05 */
+ * The inverse (given R and the upper medium, find the lower medium) has two
+ * roots. Bright basal reflections come from a denser lower medium, so we take
+ * the ε₂ > ε₁ branch: √ε₂ = √ε₁ · (1 + √R) / (1 − √R).
+ *
+ *   Orosei et al. (2018), Science 361, 490–493 */
 
-import type { FresnelResult } from '../../types/types';
+export interface FresnelResult {
+  /** Power reflection coefficient R. */
+  reflectionCoefficient: number;
+  /** 10·log10(R); −Infinity for identical media. */
+  reflectionDb: number;
+  /** Power transmission coefficient T = 1 − R. */
+  transmissionCoefficient: number;
+}
 
 export function fresnelReflection(epsilon1: number, epsilon2: number): FresnelResult {
-  if (epsilon1 < 1 || epsilon2 < 1) {
-    throw new RangeError('Dielectric permittivity must be ≥ 1');
-  }
-
-  const sqrtE1 = Math.sqrt(epsilon1);
-  const sqrtE2 = Math.sqrt(epsilon2);
-  const numerator = sqrtE1 - sqrtE2;
-  const denominator = sqrtE1 + sqrtE2;
-
-  const R = (numerator / denominator) ** 2;
-  const T = 1 - R;
-  const RdB = R > 0 ? 10 * Math.log10(R) : -Infinity;
-
+  if (!(epsilon1 >= 1) || !(epsilon2 >= 1)) throw new RangeError('Permittivity must be ≥ 1');
+  const a = Math.sqrt(epsilon1);
+  const b = Math.sqrt(epsilon2);
+  const R = ((a - b) / (a + b)) ** 2;
   return {
     reflectionCoefficient: R,
-    reflectionDb: RdB,
-    transmissionCoefficient: T,
+    reflectionDb: R > 0 ? 10 * Math.log10(R) : -Infinity,
+    transmissionCoefficient: 1 - R,
   };
 }
 
-export function fresnelReflectionComplex(
-  epsilon1: number,
-  tanDelta1: number,
-  epsilon2: number,
-  tanDelta2: number
-): FresnelResult {
-  if (epsilon1 < 1 || epsilon2 < 1) {
-    throw new RangeError('Dielectric permittivity must be ≥ 1');
-  }
-
-  const re1 = epsilon1;
-  const im1 = -epsilon1 * tanDelta1;
-  const re2 = epsilon2;
-  const im2 = -epsilon2 * tanDelta2;
-
-  const mag1 = Math.sqrt(re1 * re1 + im1 * im1);
-  const phase1 = Math.atan2(im1, re1);
-  const sqrtMag1 = Math.sqrt(mag1);
-  const sqrtPhase1 = phase1 / 2;
-  const sqrtRe1 = sqrtMag1 * Math.cos(sqrtPhase1);
-  const sqrtIm1 = sqrtMag1 * Math.sin(sqrtPhase1);
-
-  const mag2 = Math.sqrt(re2 * re2 + im2 * im2);
-  const phase2 = Math.atan2(im2, re2);
-  const sqrtMag2 = Math.sqrt(mag2);
-  const sqrtPhase2 = phase2 / 2;
-  const sqrtRe2 = sqrtMag2 * Math.cos(sqrtPhase2);
-  const sqrtIm2 = sqrtMag2 * Math.sin(sqrtPhase2);
-
-  const diffRe = sqrtRe1 - sqrtRe2;
-  const diffIm = sqrtIm1 - sqrtIm2;
-  const sumRe = sqrtRe1 + sqrtRe2;
-  const sumIm = sqrtIm1 + sqrtIm2;
-
-  const diffMagSq = diffRe * diffRe + diffIm * diffIm;
-  const sumMagSq = sumRe * sumRe + sumIm * sumIm;
-
-  const R = sumMagSq > 0 ? diffMagSq / sumMagSq : 0;
-  const T = 1 - R;
-  const RdB = R > 0 ? 10 * Math.log10(R) : -Infinity;
-
-  return {
-    reflectionCoefficient: R,
-    reflectionDb: RdB,
-    transmissionCoefficient: T,
-  };
-}
-
-export function reflectionDifference(
-  epsilonBase: number,
-  epsilonTarget1: number,
-  epsilonTarget2: number
-): number {
-  const r1 = fresnelReflection(epsilonBase, epsilonTarget1);
-  const r2 = fresnelReflection(epsilonBase, epsilonTarget2);
-  return r2.reflectionDb - r1.reflectionDb;
+/** Permittivity of the lower medium that produces power reflectivity R under a medium of permittivity epsAbove. */
+export function invertFresnel(R: number, epsAbove: number): number {
+  const r = Math.sqrt(Math.min(0.999, Math.max(0, R)));
+  const root = Math.sqrt(epsAbove) * (1 + r) / (1 - r);
+  return root * root;
 }

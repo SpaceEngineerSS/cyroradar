@@ -1,7 +1,13 @@
-/* CRYORADAR — Polarimetric SAR Decomposition Engine (Production)
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* Polarimetric decomposition.
  *
- * Implements PolSAR decomposition chain for subsurface radar:
+ * SHARAD and MARSIS both transmit and receive a single linear polarisation, so
+ * nothing in their archives can be decomposed. This module answers a what-if
+ * question instead: if a fully polarimetric sounder flew over the same scene,
+ * which scattering mechanisms would the decompositions report? The scattering
+ * matrix is simulated from the radargram (see simulatePolSAR below), and the
+ * standard decompositions are applied to it.
+ *
+ * Decomposition chain:
  *   1. Stokes Parameters — polarization state of the returned wave
  *   2. Pauli Decomposition — surface/dihedral/volume scattering power
  *   3. Cloude-Pottier Decomposition — entropy, alpha, anisotropy
@@ -29,10 +35,8 @@
  *   Lee, J.S. & Pottier, E. (2009). Polarimetric Radar Imaging:
  *     From Basics to Applications. CRC Press. */
 
-import type {
-  StokesVector, PauliComponents, CloudePottierParams,
-  PolSARPixel, PolSARResult, RadargramData,
-} from '../../types/types';
+import type { StokesVector, PauliComponents, CloudePottierParams, PolSARResult, RadargramData } from '../../types/types';
+import { seededRandom } from '../util/random';
 
 /* ── Stokes Vector ──────────────────────────────────────── */
 
@@ -122,6 +126,10 @@ export function cloudePottierFromEigenvalues(
   eigenvalues: [number, number, number],
   alphas: [number, number, number]
 ): CloudePottierParams {
+  // Sort by eigenvalue, largest first, keeping each alpha with its eigenvalue.
+  const order = [0, 1, 2].sort((a, b) => eigenvalues[b] - eigenvalues[a]);
+  eigenvalues = [eigenvalues[order[0]], eigenvalues[order[1]], eigenvalues[order[2]]];
+  alphas = [alphas[order[0]], alphas[order[1]], alphas[order[2]]];
   const total = eigenvalues[0] + eigenvalues[1] + eigenvalues[2];
   const safeTotal = Math.max(total, 1e-20);
 
@@ -144,80 +152,103 @@ export function cloudePottierFromEigenvalues(
   };
 }
 
-/* ── Synthetic PolSAR Generator ─────────────────────────── */
+/* Simulation ------------------------------------------------------------- */
 
-function seededRandom(seed: number): () => number {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
-  };
-}
+/** Grid cap so very large radargrams stay within a few MB per channel. */
+const MAX_PIXELS = 400_000;
 
 /**
- * Generates synthetic PolSAR data from a radargram.
- * Synthesizes polarimetric channels based on Mars subsurface layer structure.
+ * Simulates a scattering matrix per pixel and decomposes it.
  *
- * For Mars polar layered deposits (NPLD/SPLD), volume scattering
- * indicates dust-laden ice layers, while surface scattering dominates
- * at clean ice-rock or ice-regolith interfaces.
+ * Model: sharp local maxima along a trace (specular interfaces) scatter mostly
+ * as surfaces; diffuse energy between interfaces is treated as volume
+ * scattering from dust and inclusions; a small, random dihedral part stands in
+ * for buried blocks and crevasse walls. Phases are random but seeded.
  */
-export function generateSyntheticPolSAR(
-  radargram: RadargramData,
-  seed: number = 42
-): PolSARResult {
+export function simulatePolSAR(radargram: RadargramData, seed = 42): PolSARResult {
   const { width, height, data, powerMin, powerMax } = radargram;
+  const step = Math.max(1, Math.ceil(Math.sqrt((width * height) / MAX_PIXELS)));
+  const w = Math.ceil(width / step);
+  const h = Math.ceil(height / step);
   const rng = seededRandom(seed);
-  const range = powerMax - powerMin;
-  const pixels: PolSARPixel[] = [];
+  const range = powerMax - powerMin || 1;
 
-  for (let y = 0; y < height; y++) {
-    const depthFrac = y / height;
-    for (let x = 0; x < width; x++) {
-      const val = data[y * width + x];
-      const norm = range > 0 ? (val - powerMin) / range : 0;
-      const amplitude = Math.max(0.01, norm);
+  const entropy = new Float32Array(w * h);
+  const alpha = new Float32Array(w * h);
+  const anisotropy = new Float32Array(w * h);
+  const surface = new Float32Array(w * h);
+  const dihedral = new Float32Array(w * h);
+  const volume = new Float32Array(w * h);
 
-      const surfaceFrac = depthFrac < 0.1 ? 0.8 : 0.2 + amplitude * 0.3;
+  let sumH = 0, sumA = 0, sumAn = 0, sumS = 0, sumD = 0, sumV = 0;
 
-      const volumeFrac = 0.05 + rng() * 0.1;
+  for (let y = 0; y < h; y++) {
+    const sy = Math.min(height - 1, y * step);
+    for (let x = 0; x < w; x++) {
+      const sx = Math.min(width - 1, x * step);
+      const v = data[sy * width + sx];
+      const norm = Math.max(0.01, (v - powerMin) / range);
+      // Peakedness: how much this sample stands out from its vertical neighbours.
+      let local = 0;
+      let n = 0;
+      for (let k = -4; k <= 4; k++) {
+        const yy = sy + k;
+        if (yy < 0 || yy >= height || k === 0) continue;
+        local += data[yy * width + sx];
+        n++;
+      }
+      const peak = Math.min(1, Math.max(0, (v - local / Math.max(1, n)) / 12));
 
-      const dihedralFrac = Math.max(0, 1 - surfaceFrac - volumeFrac);
+      const fs = 0.2 + 0.65 * peak;
+      const fv = (0.12 + 0.45 * (1 - peak)) * (0.6 + 0.4 * norm);
+      const fd = 0.03 + 0.07 * rng();
+      const total = fs + fv + fd;
+      const p = norm * norm;
 
-      const power = amplitude * amplitude;
-      const sHH: [number, number] = [
-        Math.sqrt(power * (surfaceFrac + dihedralFrac)) * (0.8 + 0.4 * rng()),
-        rng() * 0.1,
-      ];
-      const sVV: [number, number] = [
-        Math.sqrt(power * surfaceFrac) * (0.8 + 0.4 * rng()),
-        rng() * 0.1,
-      ];
-      const sHV: [number, number] = [
-        Math.sqrt(power * volumeFrac * 0.5) * rng(),
-        Math.sqrt(power * volumeFrac * 0.5) * rng(),
-      ];
+      const ph = () => rng() * Math.PI * 2;
+      const a1 = Math.sqrt((p * fs) / total);
+      const a2 = Math.sqrt((p * fd) / total);
+      const a3 = Math.sqrt((p * fv) / total / 2);
+      const p1 = ph(), p2 = ph(), p3 = ph();
+      // Pauli basis: HH + VV ∝ surface, HH − VV ∝ dihedral, HV ∝ volume.
+      const sHH: [number, number] = [(a1 * Math.cos(p1) + a2 * Math.cos(p2)) / Math.SQRT2, (a1 * Math.sin(p1) + a2 * Math.sin(p2)) / Math.SQRT2];
+      const sVV: [number, number] = [(a1 * Math.cos(p1) - a2 * Math.cos(p2)) / Math.SQRT2, (a1 * Math.sin(p1) - a2 * Math.sin(p2)) / Math.SQRT2];
+      const sHV: [number, number] = [a3 * Math.cos(p3), a3 * Math.sin(p3)];
 
-      const stokes = computeStokesVector(sHH[0], sHH[1], sVV[0], sVV[1]);
       const pauli = pauliDecomposition(sHH, sHV, sHV, sVV);
+      const tp = pauli.totalPower || 1e-20;
+      // With the T3 matrix taken as diagonal, its eigenvectors are the Pauli
+      // vectors, whose alpha angles are 0, π/2 and π/2.
+      const cp = cloudePottierFromEigenvalues([pauli.surface, pauli.dihedral, pauli.volume], [0, Math.PI / 2, Math.PI / 2]);
 
-      const totalP = pauli.totalPower || 1e-20;
-      const lambda1 = pauli.surface / totalP;
-      const lambda2 = pauli.dihedral / totalP;
-      const lambda3 = pauli.volume / totalP;
-
-      const alpha1 = Math.acos(Math.min(1, Math.sqrt(lambda1)));
-      const alpha2 = Math.acos(Math.min(1, Math.sqrt(Math.max(0, lambda2))));
-      const alpha3 = Math.PI / 4;
-
-      const cloudePottier = cloudePottierFromEigenvalues(
-        [lambda1 * totalP, lambda2 * totalP, lambda3 * totalP],
-        [alpha1, alpha2, alpha3]
-      );
-
-      pixels.push({ stokes, pauli, cloudePottier });
+      const i = y * w + x;
+      entropy[i] = cp.entropy;
+      alpha[i] = cp.meanAlpha;
+      anisotropy[i] = cp.anisotropy;
+      surface[i] = pauli.surface / tp;
+      dihedral[i] = pauli.dihedral / tp;
+      volume[i] = pauli.volume / tp;
+      sumH += cp.entropy;
+      sumA += cp.meanAlpha;
+      sumAn += cp.anisotropy;
+      sumS += surface[i];
+      sumD += dihedral[i];
+      sumV += volume[i];
     }
   }
 
-  return { width, height, pixels };
+  const N = w * h;
+  return {
+    width: w,
+    height: h,
+    stepX: step,
+    stepY: step,
+    entropy, alpha, anisotropy, surface, dihedral, volume,
+    stats: {
+      meanEntropy: sumH / N,
+      meanAlphaDeg: ((sumA / N) * 180) / Math.PI,
+      meanAnisotropy: sumAn / N,
+      fractions: { surface: sumS / N, dihedral: sumD / N, volume: sumV / N },
+    },
+  };
 }

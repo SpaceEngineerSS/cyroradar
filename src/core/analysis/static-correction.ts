@@ -1,26 +1,13 @@
-/* CRYORADAR — Topographic Static Correction Engine
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* Topographic static correction.
  *
- * Aligns all radar traces to a common surface datum by computing
- * per-trace vertical time-shifts from MOLA surface echo indices.
+ * Shifts every trace so its surface echo lands on a common datum row (the
+ * median surface row). Samples shifted in from outside the window are filled
+ * with the radargram's minimum, which is the noise floor in dB data.
  *
- * Without static correction, the radargram surface echo appears
- * at different sample positions per trace due to varying spacecraft
- * altitude and surface topography. This misalignment invalidates
- * SAR migration geometry.
+ * Flattening the surface makes layer continuity easier to judge by eye and is
+ * the expected input geometry for migration.
  *
- * Algorithm (first principles):
- *   1. datumIdx = median(surfaceEchoIdx[0..N])
- *   2. shift[t] = surfaceEchoIdx[t] − datumIdx
- *   3. For each trace, shift samples vertically by shift[t]
- *   4. Boundary handling: zero-fill (no wrap)
- *
- * Energy conservation: Σ|corrected| ≈ Σ|original| within ε for
- * samples lost at boundaries due to shifting.
- *
- * References:
- *   Yilmaz (2001), Seismic Data Analysis, SEG — Ch. 3 (Statics)
- *   Heggy et al. (2006), JGR 111, E06S02 */
+ *   Yilmaz (2001), Seismic Data Analysis, SEG, ch. 3 */
 
 import type { RadargramData, SurfaceEchoData } from '../../types/types';
 
@@ -28,46 +15,33 @@ export interface StaticCorrectionResult {
   correctedData: Float32Array;
   shifts: Int16Array;
   datumIdx: number;
-  energyBefore: number;
-  energyAfter: number;
+  /** Surface rows after correction (all equal to the datum where in range). */
+  correctedSurface: Uint16Array;
 }
 
-function medianUint16(arr: Uint16Array): number {
-  const sorted = Array.from(arr).sort((a, b) => a - b);
+function median(values: ArrayLike<number>): number {
+  if (values.length === 0) return 0;
+  const sorted = Array.from(values).sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
-export function computeStaticCorrection(
-  radargram: RadargramData,
-  surfaceEcho: SurfaceEchoData
-): StaticCorrectionResult {
-  const { width, height, data } = radargram;
-  const correctedData = new Float32Array(width * height);
+export function computeStaticCorrection(radargram: RadargramData, surfaceEcho: SurfaceEchoData): StaticCorrectionResult {
+  const { width, height, data, powerMin } = radargram;
+  const correctedData = new Float32Array(width * height).fill(powerMin);
   const shifts = new Int16Array(width);
-
-  const datumIdx = medianUint16(surfaceEcho.indices);
-
-  let energyBefore = 0;
-  let energyAfter = 0;
+  const correctedSurface = new Uint16Array(width);
+  const datumIdx = median(surfaceEcho.indices.subarray(0, width));
 
   for (let t = 0; t < width; t++) {
-    const shift = surfaceEcho.indices[t] - datumIdx;
+    const surf = t < surfaceEcho.indices.length ? surfaceEcho.indices[t] : datumIdx;
+    const shift = surf - datumIdx;
     shifts[t] = shift;
-
+    correctedSurface[t] = Math.max(0, Math.min(height - 1, surf - shift));
     for (let s = 0; s < height; s++) {
-      const srcVal = data[s * width + t];
-      energyBefore += Math.abs(srcVal);
-
-      const dstS = s - shift;
-      if (dstS >= 0 && dstS < height) {
-        correctedData[dstS * width + t] = srcVal;
-        energyAfter += Math.abs(srcVal);
-      }
+      const src = s + shift;
+      if (src >= 0 && src < height) correctedData[s * width + t] = data[src * width + t];
     }
   }
-
-  return { correctedData, shifts, datumIdx, energyBefore, energyAfter };
+  return { correctedData, shifts, datumIdx, correctedSurface };
 }

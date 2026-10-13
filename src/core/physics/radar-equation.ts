@@ -1,156 +1,129 @@
-/* CRYORADAR — Radar Link Budget Equation
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* Link budget for an orbital sounder over a flat, specular surface.
  *
- * Implements the monostatic radar range equation for orbital ground-penetrating
- * radar. Core reference: Skolnik, M. I. (2001), Introduction to Radar Systems.
+ * For a smooth interface the image-source form of the radar equation applies
+ * (no scattering cross-section): the echo behaves like a mirror image of the
+ * antenna at twice the range.
  *
- * Pr/Pt = G² λ² σ / ((4π)³ R⁴)
+ *   P_r = P_t G² λ² Γ / ((4π)² (2H)²)
  *
- * For subsurface sounding radar:
- *   - σ is the effective scattering cross-section of the reflecting interface
- *   - Additional terms account for propagation through Martian subsurface  */
+ * A subsurface echo from depth d adds two-way transmission through the surface,
+ * two-way dielectric loss, and the extra (refracted) range d/√ε:
+ *
+ *   P_sub = P_t G² λ² T² Γ_b 10^(−L/10) / ((4π)² (2(H + d/√ε))²)
+ *
+ * Noise is k·T_sys·B. At HF the system temperature is dominated by galactic
+ * background, which is why T_sys is tens of thousands of kelvin here.
+ * The instrument numbers below are nominal and meant for order-of-magnitude
+ * work; the docs list their sources.
+ *
+ *   Picardi et al. (2004), Planet. Space Sci. 52, 149–156
+ *   Seu et al. (2007), JGR 112, E05S05 */
 
-import { SPEED_OF_LIGHT, SHARAD, MARSIS } from './constants';
+import { SPEED_OF_LIGHT } from './constants';
+import { fresnelReflection } from './fresnel';
+import { lossDbPerMeter } from './attenuation';
 
 const K_BOLTZMANN = 1.380649e-23;
 
-export interface RadarBudget {
-  transmitPowerW: number;
-  transmitPowerDbm: number;
-  antennaGainDb: number;
-  wavelengthM: number;
-  rangeM: number;
-  spreadingLossDb: number;
-  receivedPowerDbm: number;
-  systemNoiseDbm: number;
-  snrDb: number;
-}
-
 export interface InstrumentSpec {
   transmitPowerW: number;
-  antennaGainDb: number;
+  antennaGainDbi: number;
   systemTempK: number;
-  noiseFigureDb: number;
   centerFrequencyHz: number;
   bandwidthHz: number;
+  /** 10·log10(B·τ) for the transmitted chirp. */
   pulseCompressionGainDb: number;
-  stackingGain: number;
+  /** Coherent along-track (SAR / presumming) gain. */
+  processingGainDb: number;
+  orbitAltitudeM: number;
 }
 
 export const SHARAD_SPEC: InstrumentSpec = {
   transmitPowerW: 10,
-  antennaGainDb: 4.1,
-  systemTempK: 500,
-  noiseFigureDb: 3.5,
+  antennaGainDbi: 2.15,
+  systemTempK: 3e4,
   centerFrequencyHz: 20e6,
   bandwidthHz: 10e6,
-  pulseCompressionGainDb: 21.6,
-  stackingGain: 8,
+  pulseCompressionGainDb: 29.3,
+  processingGainDb: 27,
+  orbitAltitudeM: 300e3,
 };
 
 export const MARSIS_SPEC: InstrumentSpec = {
   transmitPowerW: 5,
-  antennaGainDb: 2.0,
-  systemTempK: 600,
-  noiseFigureDb: 4.0,
+  antennaGainDbi: 2.15,
+  systemTempK: 1e6,
   centerFrequencyHz: 4e6,
   bandwidthHz: 1e6,
-  pulseCompressionGainDb: 16.0,
-  stackingGain: 16,
+  pulseCompressionGainDb: 24,
+  processingGainDb: 20,
+  orbitAltitudeM: 800e3,
 };
 
-function toDbm(watts: number): number {
-  return 10 * Math.log10(watts) + 30;
+export interface RadarBudget {
+  wavelengthM: number;
+  rangeM: number;
+  surfaceReflectivityDb: number;
+  receivedPowerDbw: number;
+  noisePowerDbw: number;
+  /** SNR after pulse compression and processing gain. */
+  snrDb: number;
 }
 
-export function computeWavelength(frequencyHz: number): number {
-  return SPEED_OF_LIGHT / frequencyHz;
+const toDb = (x: number) => 10 * Math.log10(x);
+
+function specularPowerW(spec: InstrumentSpec, rangeM: number, reflectivity: number): number {
+  const lambda = SPEED_OF_LIGHT / spec.centerFrequencyHz;
+  const g = 10 ** (spec.antennaGainDbi / 10);
+  return (spec.transmitPowerW * g * g * lambda * lambda * reflectivity) / ((4 * Math.PI) ** 2 * (2 * rangeM) ** 2);
 }
 
-export function freeSpaceSpreadingLoss(rangeM: number, wavelengthM: number): number {
-  return 20 * Math.log10((4 * Math.PI * rangeM) / wavelengthM);
+export function noisePowerW(spec: InstrumentSpec): number {
+  return K_BOLTZMANN * spec.systemTempK * spec.bandwidthHz;
 }
 
-export function surfaceReflectionLoss(permittivityAbove: number, permittivityBelow: number): number {
-  const r = Math.pow(
-    (Math.sqrt(permittivityAbove) - Math.sqrt(permittivityBelow)) /
-    (Math.sqrt(permittivityAbove) + Math.sqrt(permittivityBelow)),
-    2
-  );
-  return -10 * Math.log10(r);
-}
-
-export function subsurfaceAttenuationDb(
-  frequencyHz: number,
-  permittivity: number,
-  lossTangent: number,
-  thicknessM: number
-): number {
-  const alpha =
-    (2 * Math.PI * frequencyHz * lossTangent * Math.sqrt(permittivity)) / SPEED_OF_LIGHT;
-  return 2 * alpha * thicknessM * (20 / Math.LN10);
-}
-
-export function systemNoisePower(spec: InstrumentSpec): number {
-  const noiseW = K_BOLTZMANN * spec.systemTempK * spec.bandwidthHz;
-  return noiseW * Math.pow(10, spec.noiseFigureDb / 10);
-}
-
-export function computeRadarBudget(
-  spec: InstrumentSpec,
-  rangeM: number,
-  surfaceReflectivity: number = 0.02
-): RadarBudget {
-  const wavelength = computeWavelength(spec.centerFrequencyHz);
-  const sigma = surfaceReflectivity * Math.PI * Math.pow(wavelength * rangeM, 0.5);
-
-  const numerator =
-    spec.transmitPowerW *
-    Math.pow(10, (2 * spec.antennaGainDb) / 10) *
-    Math.pow(wavelength, 2) *
-    sigma;
-  const denominator = Math.pow(4 * Math.PI, 3) * Math.pow(rangeM, 4);
-
-  const prW = numerator / denominator;
-  const prWithGains = prW
-    * Math.pow(10, spec.pulseCompressionGainDb / 10)
-    * spec.stackingGain;
-
-  const noisePowerW = systemNoisePower(spec);
-  const spreading = freeSpaceSpreadingLoss(rangeM, wavelength);
-
+export function computeRadarBudget(spec: InstrumentSpec, surfacePermittivity = 3.15): RadarBudget {
+  const R = fresnelReflection(1, surfacePermittivity).reflectionCoefficient;
+  const pr = specularPowerW(spec, spec.orbitAltitudeM, R);
+  const noise = noisePowerW(spec);
   return {
-    transmitPowerW: spec.transmitPowerW,
-    transmitPowerDbm: toDbm(spec.transmitPowerW),
-    antennaGainDb: spec.antennaGainDb,
-    wavelengthM: wavelength,
-    rangeM,
-    spreadingLossDb: spreading,
-    receivedPowerDbm: toDbm(prWithGains),
-    systemNoiseDbm: toDbm(noisePowerW),
-    snrDb: toDbm(prWithGains) - toDbm(noisePowerW),
+    wavelengthM: SPEED_OF_LIGHT / spec.centerFrequencyHz,
+    rangeM: spec.orbitAltitudeM,
+    surfaceReflectivityDb: toDb(R),
+    receivedPowerDbw: toDb(pr),
+    noisePowerDbw: toDb(noise),
+    snrDb: toDb(pr / noise) + spec.pulseCompressionGainDb + spec.processingGainDb,
   };
 }
 
-export function minimumDetectableDepth(
-  instrument: 'SHARAD' | 'MARSIS',
-  permittivity: number,
-  lossTangent: number
-): number {
-  const spec = instrument === 'SHARAD' ? SHARAD_SPEC : MARSIS_SPEC;
-  const orbitAltitude = instrument === 'SHARAD' ? 300e3 : 800e3;
+export interface SubsurfaceTarget {
+  /** Medium the wave travels through. */
+  permittivity: number;
+  lossTangent: number;
+  /** Permittivity below the reflector. */
+  basalPermittivity: number;
+}
 
-  const budget = computeRadarBudget(spec, orbitAltitude);
-  const availableSNR = budget.snrDb;
+/** SNR of a basal echo from `depthM`, dB. */
+export function subsurfaceSnrDb(spec: InstrumentSpec, target: SubsurfaceTarget, depthM: number): number {
+  const T = fresnelReflection(1, target.permittivity).transmissionCoefficient;
+  const Rb = fresnelReflection(target.permittivity, target.basalPermittivity).reflectionCoefficient;
+  const range = spec.orbitAltitudeM + depthM / Math.sqrt(target.permittivity);
+  const lossDb = 2 * lossDbPerMeter(spec.centerFrequencyHz, target.permittivity, target.lossTangent) * depthM;
+  const pr = specularPowerW(spec, range, T * T * Rb) * 10 ** (-lossDb / 10);
+  return toDb(pr / noisePowerW(spec)) + spec.pulseCompressionGainDb + spec.processingGainDb;
+}
 
-  const freq = spec.centerFrequencyHz;
-  const c = SPEED_OF_LIGHT;
-  const alphaDbPerM = (2 * Math.PI * freq * lossTangent * Math.sqrt(permittivity) / c)
-    * (20 / Math.LN10) * 2;
-
-  if (alphaDbPerM <= 0) return instrument === 'SHARAD' ? SHARAD.maxPenetrationDepthM : MARSIS.maxPenetrationDepthM;
-  return Math.min(
-    availableSNR / alphaDbPerM,
-    instrument === 'SHARAD' ? SHARAD.maxPenetrationDepthM : MARSIS.maxPenetrationDepthM
-  );
+/** Deepest depth at which the basal echo still clears `minSnrDb` (bisection, 0–20 km). */
+export function maxDetectableDepth(spec: InstrumentSpec, target: SubsurfaceTarget, minSnrDb = 3): number {
+  if (subsurfaceSnrDb(spec, target, 0) < minSnrDb) return 0;
+  let lo = 0;
+  let hi = 20_000;
+  if (subsurfaceSnrDb(spec, target, hi) >= minSnrDb) return hi;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (subsurfaceSnrDb(spec, target, mid) >= minSnrDb) lo = mid;
+    else hi = mid;
+  }
+  return lo;
 }

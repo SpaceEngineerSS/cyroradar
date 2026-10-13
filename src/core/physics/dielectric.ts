@@ -1,7 +1,6 @@
-/* CRYORADAR — Dielectric Constants Database (Production)
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
- *
- * Production: Mars-focused dielectric material library. */
+/* Dielectric properties of materials relevant to the Martian subsurface at HF.
+ * Values are representative of ~200 K and 2–20 MHz; ranges show the spread
+ * in the cited laboratory and orbital studies. */
 
 import type { DielectricMaterial } from '../../types/types';
 
@@ -12,7 +11,7 @@ const MATERIALS: DielectricMaterial[] = [
     nameShort: 'Vacuum',
     permittivity: 1.0,
     lossTangent: 0,
-    color: '#475569',
+    color: '#5b5750',
     reference: '—',
   },
   {
@@ -21,7 +20,7 @@ const MATERIALS: DielectricMaterial[] = [
     nameShort: 'Atmo',
     permittivity: 1.0006,
     lossTangent: 0,
-    color: '#94a3b8',
+    color: '#77716a',
     reference: '—',
   },
   {
@@ -32,7 +31,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [2.11, 2.13],
     lossTangent: 1e-4,
     lossTangentRange: [5e-5, 2e-4],
-    color: '#e0f2fe',
+    color: '#dfe3e4',
     reference: 'Pettinelli et al. (2003)',
   },
   {
@@ -43,7 +42,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [3.13, 3.17],
     lossTangent: 1e-3,
     lossTangentRange: [5e-4, 2e-3],
-    color: '#7dd3fc',
+    color: '#a9c6d3',
     reference: 'Mätzler (1998)',
   },
   {
@@ -54,7 +53,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [3.4, 3.5],
     lossTangent: 1e-2,
     lossTangentRange: [5e-3, 2e-2],
-    color: '#a5b4fc',
+    color: '#8fa3ad',
     reference: 'Nunes & Phillips (2006)',
   },
   {
@@ -65,7 +64,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [3.2, 4.5],
     lossTangent: 0.008,
     lossTangentRange: [0.005, 0.012],
-    color: '#a8a29e',
+    color: '#8d867c',
     reference: 'Carter et al. (2009)',
   },
   {
@@ -76,7 +75,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [3.5, 5.0],
     lossTangent: 0.005,
     lossTangentRange: [0.003, 0.008],
-    color: '#c2410c',
+    color: '#a65a35',
     reference: 'Heggy et al. (2001), Allen et al. (1998)',
   },
   {
@@ -87,7 +86,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [4, 6],
     lossTangent: 0.007,
     lossTangentRange: [0.005, 0.01],
-    color: '#d97706',
+    color: '#b97a45',
     reference: 'Heggy et al. (2001)',
   },
   {
@@ -98,7 +97,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [5.0, 6.5],
     lossTangent: 0.003,
     lossTangentRange: [0.001, 0.005],
-    color: '#fef3c7',
+    color: '#e6dcc6',
     reference: 'Stillman & Olhoeft (2008)',
   },
   {
@@ -109,7 +108,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [5.0, 8.0],
     lossTangent: 0.015,
     lossTangentRange: [0.01, 0.025],
-    color: '#65a30d',
+    color: '#7f8c5a',
     reference: 'Stillman & Olhoeft (2008)',
   },
   {
@@ -120,7 +119,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [10, 15],
     lossTangent: 0.15,
     lossTangentRange: [0.08, 0.25],
-    color: '#7c3aed',
+    color: '#6b7b47',
     reference: 'Stillman et al. (2010), JGR 115, E09005',
   },
   {
@@ -131,7 +130,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [12, 17],
     lossTangent: 0.30,
     lossTangentRange: [0.15, 0.50],
-    color: '#6d28d9',
+    color: '#596440',
     reference: 'Stillman & Grimm (2011), JGR 116',
   },
   {
@@ -142,7 +141,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [6.0, 8.0],
     lossTangent: 0.018,
     lossTangentRange: [0.01, 0.03],
-    color: '#eab308',
+    color: '#c9a94a',
     reference: 'Stillman et al. (2006)',
   },
   {
@@ -153,7 +152,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [7, 9],
     lossTangent: 0.02,
     lossTangentRange: [0.01, 0.03],
-    color: '#78350f',
+    color: '#5a4436',
     reference: 'Campbell & Ulrichs (1969)',
   },
   {
@@ -164,7 +163,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [9, 12],
     lossTangent: 0.04,
     lossTangentRange: [0.02, 0.06],
-    color: '#991b1b',
+    color: '#6e3a2c',
     reference: 'Olhoeft & Strangway (1975)',
   },
   {
@@ -175,7 +174,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivityRange: [2.5, 3.1],
     lossTangent: 5e-4,
     lossTangentRange: [2e-4, 8e-4],
-    color: '#d8b4fe',
+    color: '#b8b3c4',
     reference: 'Pettinelli et al. (2015)',
   },
   {
@@ -185,7 +184,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivity: 80,
     permittivityRange: [80, 88],
     lossTangent: 0.1,
-    color: '#2563eb',
+    color: '#3f6f9a',
     reference: 'Buchner et al. (1999)',
   },
   {
@@ -195,7 +194,7 @@ const MATERIALS: DielectricMaterial[] = [
     permittivity: 60,
     permittivityRange: [40, 80],
     lossTangent: 0.5,
-    color: '#1d4ed8',
+    color: '#2f5577',
     reference: 'Stillman et al. (2010)',
   },
 ];
@@ -210,29 +209,4 @@ export function getAllMaterials(): readonly DielectricMaterial[] {
 
 export function getMaterial(id: string): DielectricMaterial | undefined {
   return materialMap.get(id);
-}
-
-export function getMaterialOrThrow(id: string): DielectricMaterial {
-  const mat = materialMap.get(id);
-  if (!mat) throw new Error(`Unknown material: ${id}`);
-  return mat;
-}
-
-export function createCustomMaterial(
-  name: string,
-  permittivity: number,
-  lossTangent: number,
-  color = '#9ca3af'
-): DielectricMaterial {
-  if (permittivity < 1) throw new RangeError('Permittivity must be ≥ 1');
-  if (lossTangent < 0) throw new RangeError('Loss tangent must be ≥ 0');
-  return {
-    id: `custom-${Date.now()}`,
-    name,
-    nameShort: name.slice(0, 10),
-    permittivity,
-    lossTangent,
-    color,
-    reference: 'User-defined',
-  };
 }

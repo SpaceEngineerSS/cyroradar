@@ -1,56 +1,116 @@
-/* CRYORADAR — PDS ODE REST API Client
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
+/* NASA PDS access for SHARAD US radargrams (MRO-M-SHARAD-5-RADARGRAM-V2.0).
  *
- * Queries NASA's Planetary Data System Orbital Data Explorer (ODE)
- * for real SHARAD/MARSIS radargram products.
- * API Docs: https://oderest.rsl.wustl.edu/  */
+ * Search goes to the ODE REST API, which allows cross-origin requests.
+ * Product files live on pds-geosciences.wustl.edu, which does not, so they are
+ * fetched through the /pds-data proxy (vite.config.ts in development,
+ * vercel.json in production).
+ *
+ * Archive facts used below (radargram_ds.cat):
+ *   - RGRAM.IMG: 32-bit little-endian float, linear power in arbitrary but
+ *     consistent units, LINES = delay rows, LINE_SAMPLES = along-track columns
+ *   - browse TIFF: 8-bit, logarithmic, 35 dB greyscale range
+ *   - delay spacing 0.0375 µs; columns at 128 per degree (≈ 460 m)
+ *   - GEOM.TAB: one row per column with latitude, longitude, Mars radius and
+ *     spacecraft radius in km
+ *
+ * MARSIS products are searchable in ODE but their radargram format is not
+ * supported here, so search is limited to SHARAD. */
 
-import type {
-  PDSProduct,
-  PDSFileEntry,
-  PDSGeometryRow,
-  PDSSearchParams,
-  PDSSearchResult,
-} from '../../types/pds-types';
+import type { CryoDataset } from '../../types/types';
+import type { PDSProduct, PDSSearchParams, PDSSearchResult } from '../../types/pds-types';
+import { SHARAD } from '../physics/constants';
 
 const ODE_BASE = 'https://oderest.rsl.wustl.edu/live2';
+const PDS_HOST = 'https://pds-geosciences.wustl.edu';
+const PROXY = '/pds-data';
+/** Mean areoid radius used to turn planetary radius into elevation, km. */
+const REFERENCE_RADIUS_KM = 3396.19;
+const BROWSE_RANGE_DB = 35;
 
-const INSTRUMENT_CONFIG = {
-  SHARAD: { ihid: 'MRO', iid: 'SHARAD', rgramPt: 'USRDRV2', geomPt: 'USGEOMV2' },
-  MARSIS: { ihid: 'MEX', iid: 'MARSIS', rgramPt: 'RADARCH', geomPt: 'GEOM' },
-} as const;
+/* Small LRU cache for search results ------------------------------------- */
 
-const cache = new Map<string, { data: unknown; timestamp: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_LIMIT = 24;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const cache = new Map<string, { at: number; value: PDSSearchResult }>();
 
-function getCached<T>(key: string): T | null {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+function cacheGet(key: string): PDSSearchResult | null {
+  const hit = cache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > CACHE_TTL_MS) {
     cache.delete(key);
     return null;
   }
-  return entry.data as T;
+  cache.delete(key);
+  cache.set(key, hit);
+  return hit.value;
 }
 
-function setCache(key: string, data: unknown): void {
-  cache.set(key, { data, timestamp: Date.now() });
+function cacheSet(key: string, value: PDSSearchResult) {
+  cache.set(key, { at: Date.now(), value });
+  while (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value as string);
 }
 
-function buildOdeUrl(params: Record<string, string | number>): string {
-  const query = Object.entries(params)
-    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
-    .join('&');
-  return `${ODE_BASE}/?${query}`;
+/* Fetch helpers ------------------------------------------------------------ */
+
+export class PdsError extends Error {
+  readonly status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'PdsError';
+    this.status = status;
+  }
 }
 
-function parseProduct(raw: Record<string, string>, instrument: 'SHARAD' | 'MARSIS'): PDSProduct {
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+async function fetchOk(url: string, signal: AbortSignal | undefined, timeoutMs: number): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: withTimeout(signal, timeoutMs) });
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    if (err instanceof DOMException && err.name === 'TimeoutError') throw new PdsError('The PDS server took too long to answer.');
+    throw new PdsError('Could not reach the PDS server. Check your connection and try again.');
+  }
+  if (!res.ok) throw new PdsError(`The PDS server answered ${res.status} for ${url.split('/').pop()}.`, res.status);
+  return res;
+}
+
+/** Reads a response body while reporting progress (0–1 when the size is known). */
+async function readWithProgress(res: Response, onProgress?: (f: number) => void): Promise<ArrayBuffer> {
+  const total = Number(res.headers.get('content-length')) || 0;
+  if (!res.body || !onProgress) return res.arrayBuffer();
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) onProgress(Math.min(1, received / total));
+  }
+  const out = new Uint8Array(received);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.length;
+  }
+  return out.buffer;
+}
+
+/* Search ------------------------------------------------------------------- */
+
+function parseProduct(raw: Record<string, string>): PDSProduct {
+  const name = raw.Product_name ?? '';
   return {
-    productId: raw.Product_name?.replace(/\.\w+$/, '') ?? '',
-    productName: raw.Product_name ?? '',
-    description: raw.Description ?? '',
-    instrument,
-    orbitNumber: parseInt(raw.Start_orbit_number ?? '0', 10),
+    productId: name.replace(/\.\w+$/, ''),
+    productName: name,
+    instrument: 'SHARAD',
+    orbitNumber: parseInt(raw.Start_orbit_number ?? '0', 10) || 0,
     observationTime: raw.Observation_time ?? raw.UTC_start_time ?? '',
     centerLat: parseFloat(raw.Center_latitude ?? '0'),
     centerLon: parseFloat(raw.Center_longitude ?? '0'),
@@ -61,279 +121,328 @@ function parseProduct(raw: Record<string, string>, instrument: 'SHARAD' | 'MARSI
     footprintWkt: raw.Footprint_geometry ?? '',
     labelUrl: raw.LabelURL ?? '',
     externalUrl: raw.External_url ?? '',
-    filesUrl: raw.FilesURL ?? '',
   };
 }
 
-export async function searchProducts(params: PDSSearchParams): Promise<PDSSearchResult> {
-  const cacheKey = `search:${JSON.stringify(params)}`;
-  const cached = getCached<PDSSearchResult>(cacheKey);
+export async function searchProducts(params: PDSSearchParams, signal?: AbortSignal): Promise<PDSSearchResult> {
+  const key = JSON.stringify(params);
+  const cached = cacheGet(key);
   if (cached) return cached;
 
-  const cfg = INSTRUMENT_CONFIG[params.instrument];
-  const url = buildOdeUrl({
+  const query = new URLSearchParams({
     target: 'mars',
     query: 'products',
     results: 'm',
     output: 'JSON',
-    ihid: cfg.ihid,
-    iid: cfg.iid,
-    pt: cfg.rgramPt,
-    minlat: params.minLat,
-    maxlat: params.maxLat,
-    westlon: params.westLon,
-    eastlon: params.eastLon,
-    limit: params.limit ?? 20,
+    ihid: 'MRO',
+    iid: 'SHARAD',
+    pt: 'USRDRV2',
+    minlat: String(params.minLat),
+    maxlat: String(params.maxLat),
+    westlon: String(params.westLon),
+    eastlon: String(params.eastLon),
+    limit: String(params.limit ?? 20),
+    offset: String(params.offset ?? 0),
   });
+  const res = await fetchOk(`${ODE_BASE}/?${query}`, signal, 20_000);
+  const json = await res.json();
+  const results = json?.ODEResults;
+  if (results?.Status === 'ERROR') throw new PdsError(`ODE rejected the query: ${results.Error}`);
 
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`PDS ODE query failed: ${response.status}`);
-
-  const json = await response.json();
-
-  if (json.ODEResults?.Status === 'ERROR') {
-    throw new Error(`PDS ODE error: ${json.ODEResults.Error}`);
-  }
-
-  const rawProducts = json.ODEResults?.Products?.Product;
-  const products: PDSProduct[] = [];
-
-  if (rawProducts) {
-    const list = Array.isArray(rawProducts) ? rawProducts : [rawProducts];
-    for (const raw of list) {
-      products.push(parseProduct(raw, params.instrument));
-    }
-  }
-
-  const result: PDSSearchResult = {
-    products,
-    totalCount: products.length,
-    queryTime: json.ODEResults?.QuerySummary?.Query_Elapsed_Time ?? '',
+  const raw = results?.Products?.Product;
+  const list: Record<string, string>[] = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+  const value: PDSSearchResult = {
+    products: list.map(parseProduct).filter(p => p.labelUrl),
+    count: parseInt(results?.Count ?? String(list.length), 10) || list.length,
   };
-
-  setCache(cacheKey, result);
-  return result;
-}
-
-export async function getProductFiles(filesUrl: string): Promise<PDSFileEntry[]> {
-  const cacheKey = `files:${filesUrl}`;
-  const cached = getCached<PDSFileEntry[]>(cacheKey);
-  if (cached) return cached;
-
-  const separator = filesUrl.includes('?') ? '&' : '?';
-  const rawUrl = `${filesUrl}${separator}output=JSON`;
-  const url = rawUrl.replace('https://ode.rsl.wustl.edu', '/pds-ode-files');
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`PDS file listing failed: ${response.status}`);
-
-  const json = await response.json();
-  const rawFiles = json.ODEResults?.Products?.Product?.Product_files?.Product_file;
-  const entries: PDSFileEntry[] = [];
-
-  if (rawFiles) {
-    const list = Array.isArray(rawFiles) ? rawFiles : [rawFiles];
-    for (const f of list) {
-      const filename = f.FileName ?? '';
-      const url = f.URL ?? '';
-      entries.push({
-        url,
-        filename,
-        type: classifyFile(filename),
-        sizeBytes: f.FileSize ? parseInt(f.FileSize, 10) : undefined,
-      });
-    }
-  }
-
-  setCache(cacheKey, entries);
-  return entries;
-}
-
-function classifyFile(filename: string): PDSFileEntry['type'] {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png')
-    || lower.includes('browse') || lower.includes('thumb')) return 'browse';
-  if (lower.endsWith('.xml') || lower.endsWith('.lbl')) return 'label';
-  if (lower.includes('geom') || lower.endsWith('.tab') || lower.endsWith('.csv')) return 'geometry';
-  if (lower.endsWith('.img') || lower.endsWith('.dat')) return 'data';
-  return 'other';
-}
-
-export async function fetchBrowseImageUrl(product: PDSProduct): Promise<string | null> {
-  const files = await getProductFiles(product.filesUrl);
-  const browse = files.find(f => f.type === 'browse');
-  if (!browse) return null;
-  return proxyPdsDataUrl(browse.url);
-}
-
-function proxyPdsDataUrl(url: string): string {
-  return url.replace('https://pds-geosciences.wustl.edu', '/pds-data');
-}
-
-export function buildRadargramImageUrl(product: PDSProduct): string {
-  const baseId = product.productId.replace(/_rgram$/, '');
-  const prefix = baseId.substring(0, 8);
-  const group = prefix.replace(/\d{2}$/, 'xx');
-  return `/pds-data/mro/mro-m-sharad-5-radargram-v2/mrosh_2101/browse/tiff/${group}/${baseId}_tiff.tif`;
-}
-
-export function buildGeometryUrl(product: PDSProduct): string {
-  const baseId = product.productId.replace(/_rgram$/, '');
-  const prefix = baseId.substring(0, 8);
-  const group = prefix.replace(/\d{2}$/, 'xx');
-  return `/pds-data/mro/mro-m-sharad-5-radargram-v2/mrosh_2101/data/geom/${group}/${baseId}_geom.csv`;
-}
-
-function readUint16(dv: DataView, offset: number, le: boolean): number {
-  return dv.getUint16(offset, le);
-}
-
-function readUint32(dv: DataView, offset: number, le: boolean): number {
-  return dv.getUint32(offset, le);
-}
-
-function decodeTiffToCanvas(buffer: ArrayBuffer): { width: number; height: number; data: Uint8ClampedArray } {
-  const dv = new DataView(buffer);
-  const magic = dv.getUint16(0, true);
-  const le = magic === 0x4949;
-
-  if (readUint16(dv, 2, le) !== 42) {
-    throw new Error('Not a valid TIFF file');
-  }
-
-  const ifdOffset = readUint32(dv, 4, le);
-  const tagCount = readUint16(dv, ifdOffset, le);
-
-  let width = 0, height = 0, bitsPerSample = 8, stripOffsets: number[] = [];
-  let rowsPerStrip = 0, samplesPerPixel = 1;
-
-  for (let i = 0; i < tagCount; i++) {
-    const tagOffset = ifdOffset + 2 + i * 12;
-    const tag = readUint16(dv, tagOffset, le);
-    const type = readUint16(dv, tagOffset + 2, le);
-    const count = readUint32(dv, tagOffset + 4, le);
-    const valueOffset = tagOffset + 8;
-
-    const readValue = () => {
-      if (type === 3) return readUint16(dv, valueOffset, le);
-      return readUint32(dv, valueOffset, le);
-    };
-
-    const readArray = (): number[] => {
-      const arr: number[] = [];
-      const size = type === 3 ? 2 : 4;
-      const dataOff = count * size > 4 ? readUint32(dv, valueOffset, le) : valueOffset;
-      for (let j = 0; j < count; j++) {
-        arr.push(type === 3
-          ? readUint16(dv, dataOff + j * size, le)
-          : readUint32(dv, dataOff + j * size, le));
-      }
-      return arr;
-    };
-
-    switch (tag) {
-      case 256: width = readValue(); break;
-      case 257: height = readValue(); break;
-      case 258: bitsPerSample = readValue(); break;
-      case 273: stripOffsets = count === 1 ? [readValue()] : readArray(); break;
-      case 277: samplesPerPixel = readValue(); break;
-      case 278: rowsPerStrip = readValue(); break;
-      case 279: break;
-    }
-  }
-
-  if (!rowsPerStrip) rowsPerStrip = height;
-
-  const pixelData = new Uint8ClampedArray(width * height * 4);
-  const bytesPerPixel = (bitsPerSample / 8) * samplesPerPixel;
-  const src = new Uint8Array(buffer);
-
-  let dstRow = 0;
-  for (let s = 0; s < stripOffsets.length; s++) {
-    const off = stripOffsets[s];
-    const rows = Math.min(rowsPerStrip, height - dstRow);
-
-    for (let r = 0; r < rows; r++) {
-      for (let x = 0; x < width; x++) {
-        const srcIdx = off + (r * width + x) * bytesPerPixel;
-        const dstIdx = ((dstRow + r) * width + x) * 4;
-
-        if (samplesPerPixel >= 3) {
-          pixelData[dstIdx] = src[srcIdx];
-          pixelData[dstIdx + 1] = src[srcIdx + 1];
-          pixelData[dstIdx + 2] = src[srcIdx + 2];
-          pixelData[dstIdx + 3] = 255;
-        } else {
-          const val = bitsPerSample === 16
-            ? (le ? src[srcIdx] | (src[srcIdx + 1] << 8) : (src[srcIdx] << 8) | src[srcIdx + 1]) >> 8
-            : src[srcIdx];
-          pixelData[dstIdx] = val;
-          pixelData[dstIdx + 1] = val;
-          pixelData[dstIdx + 2] = val;
-          pixelData[dstIdx + 3] = 255;
-        }
-      }
-    }
-    dstRow += rows;
-  }
-
-  return { width, height, data: pixelData };
-}
-
-export async function fetchRadargramAsImageData(product: PDSProduct): Promise<{
-  width: number;
-  height: number;
-  pixels: Uint8ClampedArray;
-} | null> {
-  const url = buildRadargramImageUrl(product);
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    const buffer = await response.arrayBuffer();
-    const { width, height, data } = decodeTiffToCanvas(buffer);
-    return { width, height, pixels: data };
-  } catch {
-    return null;
-  }
-}
-
-export async function fetchGeometry(url: string): Promise<PDSGeometryRow[]> {
-  const cacheKey = `geom:${url}`;
-  const cached = getCached<PDSGeometryRow[]>(cacheKey);
-  if (cached) return cached;
-
-  const response = await fetch(url);
-  if (!response.ok) return [];
-
-  const text = await response.text();
-  const rows: PDSGeometryRow[] = [];
-
-  const lines = text.trim().split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const parts = lines[i].split(',').map(s => s.trim());
-    if (parts.length < 7) continue;
-    const lat = parseFloat(parts[1]);
-    if (isNaN(lat)) continue;
-
-    rows.push({
-      traceNumber: parseInt(parts[0], 10) || i,
-      latitude: lat,
-      longitude: parseFloat(parts[2]) || 0,
-      marsRadius: parseFloat(parts[3]) || 3389500,
-      surfaceElevation: parseFloat(parts[4]) || 0,
-      spacecraftAltitude: parseFloat(parts[5]) || 300000,
-      solarZenithAngle: parseFloat(parts[6]) || 0,
-    });
-  }
-
-  setCache(cacheKey, rows);
-  return rows;
+  cacheSet(key, value);
+  return value;
 }
 
 export function footprintToLatLon(wkt: string): { lat: number; lon: number }[] {
-  const coordMatch = wkt.match(/LINESTRING\s*\(([^)]+)\)/);
-  if (!coordMatch) return [];
-  return coordMatch[1].split(',').map(pair => {
-    const [lon, lat] = pair.trim().split(/\s+/).map(Number);
-    return { lat, lon };
-  });
+  const body = wkt.match(/\(\(?([^()]+)\)?\)/);
+  if (!body) return [];
+  return body[1]
+    .split(',')
+    .map(pair => pair.trim().split(/\s+/).map(Number))
+    .filter(p => p.length >= 2 && p.every(Number.isFinite))
+    .map(([lon, lat]) => ({ lat, lon }));
+}
+
+/* Product files ------------------------------------------------------------ */
+
+export interface ProductPaths {
+  image: string;
+  browse: string;
+  geometry: string;
+}
+
+/** Derives file URLs from the label URL ODE returns, routed through the proxy. */
+export function productPaths(product: PDSProduct): ProductPaths {
+  const label = product.labelUrl;
+  const m = label.match(/^(.*\/)data\/rgram\/([^/]+)\/([^/]+)_rgram\.(xml|lbl)$/i);
+  if (!m) throw new PdsError('This product does not look like a SHARAD US radargram.');
+  const [, root, group, id] = m;
+  const viaProxy = (u: string) => u.replace(PDS_HOST, PROXY);
+  return {
+    image: viaProxy(`${root}data/rgram/${group}/${id}_rgram.img`),
+    browse: viaProxy(`${root}browse/tiff/${group}/${id}_tiff.tif`),
+    geometry: viaProxy(`${root}data/geom/${group}/${id}_geom.tab`),
+  };
+}
+
+/* Decoders ----------------------------------------------------------------- */
+
+export interface DecodedImage {
+  width: number;
+  height: number;
+  /** One value per pixel, row-major. */
+  values: Float32Array;
+}
+
+/** Baseline TIFF reader: uncompressed, 8- or 16-bit, one or more samples per pixel. */
+export function decodeTiff(buffer: ArrayBuffer): DecodedImage {
+  const dv = new DataView(buffer);
+  if (buffer.byteLength < 8) throw new PdsError('The browse image is empty.');
+  const order = dv.getUint16(0, false);
+  if (order !== 0x4949 && order !== 0x4d4d) throw new PdsError('The browse image is not a TIFF file.');
+  const le = order === 0x4949;
+  if (dv.getUint16(2, le) !== 42) throw new PdsError('The browse image is not a classic TIFF file.');
+
+  const u16 = (o: number) => dv.getUint16(o, le);
+  const u32 = (o: number) => dv.getUint32(o, le);
+  const ifd = u32(4);
+  if (ifd + 2 > buffer.byteLength) throw new PdsError('The browse image is truncated.');
+  const count = u16(ifd);
+
+  const tags = new Map<number, number[]>();
+  for (let i = 0; i < count; i++) {
+    const e = ifd + 2 + i * 12;
+    const tag = u16(e);
+    const type = u16(e + 2);
+    const n = u32(e + 4);
+    const size = type === 3 ? 2 : type === 4 ? 4 : type === 1 ? 1 : 0;
+    if (!size) continue;
+    const at = n * size > 4 ? u32(e + 8) : e + 8;
+    if (at + n * size > buffer.byteLength) continue;
+    const vals: number[] = [];
+    for (let k = 0; k < n; k++) vals.push(size === 2 ? u16(at + k * 2) : size === 4 ? u32(at + k * 4) : dv.getUint8(at + k));
+    tags.set(tag, vals);
+  }
+
+  const width = tags.get(256)?.[0] ?? 0;
+  const height = tags.get(257)?.[0] ?? 0;
+  const bits = tags.get(258)?.[0] ?? 8;
+  const compression = tags.get(259)?.[0] ?? 1;
+  const photometric = tags.get(262)?.[0] ?? 1;
+  const offsets = tags.get(273) ?? [];
+  const spp = tags.get(277)?.[0] ?? 1;
+  const rowsPerStrip = tags.get(278)?.[0] ?? height;
+  if (!width || !height || offsets.length === 0) throw new PdsError('The browse image is missing size or strip tags.');
+  if (compression !== 1) throw new PdsError('Compressed TIFF files are not supported.');
+  if (bits !== 8 && bits !== 16) throw new PdsError(`${bits}-bit TIFF files are not supported.`);
+
+  const bytesPerSample = bits / 8;
+  const stride = bytesPerSample * spp;
+  const maxValue = bits === 8 ? 255 : 65535;
+  const values = new Float32Array(width * height);
+  let row = 0;
+  for (const off of offsets) {
+    const rows = Math.min(rowsPerStrip, height - row);
+    for (let r = 0; r < rows; r++) {
+      for (let x = 0; x < width; x++) {
+        const p = off + ((r * width + x) * stride);
+        if (p + stride > buffer.byteLength) continue;
+        // Average colour channels if present; take the first sample otherwise.
+        let v = 0;
+        const channels = spp >= 3 ? 3 : 1;
+        for (let c = 0; c < channels; c++) v += bits === 8 ? dv.getUint8(p + c) : dv.getUint16(p + c * 2, le);
+        v /= channels * maxValue;
+        values[(row + r) * width + x] = photometric === 0 ? 1 - v : v;
+      }
+    }
+    row += rows;
+    if (row >= height) break;
+  }
+  return { width, height, values };
+}
+
+/** RGRAM.IMG: little-endian float32 power, `columns` per row. */
+export function decodeRgramImg(buffer: ArrayBuffer, columns: number): DecodedImage {
+  if (buffer.byteLength % (columns * 4) !== 0) throw new PdsError('The radargram file size does not match its geometry table.');
+  const height = buffer.byteLength / (columns * 4);
+  const dv = new DataView(buffer);
+  const values = new Float32Array(columns * height);
+  for (let i = 0; i < values.length; i++) values[i] = dv.getFloat32(i * 4, true);
+  return { width: columns, height, values };
+}
+
+export interface GeometryRow {
+  latitude: number;
+  longitude: number;
+  marsRadiusKm: number;
+  spacecraftRadiusKm: number;
+}
+
+export function parseGeometryTable(text: string): GeometryRow[] {
+  const rows: GeometryRow[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length < 6) continue;
+    const latitude = Number(parts[2]);
+    const longitude = Number(parts[3]);
+    const marsRadiusKm = Number(parts[4]);
+    const spacecraftRadiusKm = Number(parts[5]);
+    if (![latitude, longitude, marsRadiusKm, spacecraftRadiusKm].every(Number.isFinite)) continue;
+    rows.push({ latitude, longitude, marsRadiusKm, spacecraftRadiusKm });
+  }
+  return rows;
+}
+
+/* Surface pick and crop ---------------------------------------------------- */
+
+function median(a: number[]): number {
+  const s = [...a].sort((x, y) => x - y);
+  return s[Math.floor(s.length / 2)];
+}
+
+/**
+ * Surface row per column: the brightest return, then a running median over
+ * ±7 columns to reject isolated clutter or noise spikes.
+ */
+export function pickSurface(db: Float32Array, width: number, height: number): Uint16Array {
+  const raw = new Array<number>(width);
+  for (let t = 0; t < width; t++) {
+    let best = -Infinity;
+    let row = 0;
+    for (let s = 0; s < height; s++) {
+      const v = db[s * width + t];
+      if (v > best) {
+        best = v;
+        row = s;
+      }
+    }
+    raw[t] = row;
+  }
+  const out = new Uint16Array(width);
+  for (let t = 0; t < width; t++) {
+    const lo = Math.max(0, t - 7);
+    const hi = Math.min(width, t + 8);
+    out[t] = median(raw.slice(lo, hi));
+  }
+  return out;
+}
+
+export interface LoadOptions {
+  /** Full-resolution calibrated power (≈ 20 MB) instead of the 8-bit browse image (≈ 5 MB). */
+  full: boolean;
+  /** Delay rows kept below the deepest surface pick. */
+  depthRows?: number;
+  onProgress?: (fraction: number, label: string) => void;
+  signal?: AbortSignal;
+}
+
+export async function loadSharadProduct(product: PDSProduct, opt: LoadOptions): Promise<CryoDataset> {
+  const paths = productPaths(product);
+  const { onProgress, signal } = opt;
+
+  onProgress?.(0, 'Reading geometry table');
+  const geomText = await (await fetchOk(paths.geometry, signal, 30_000)).text();
+  const geom = parseGeometryTable(geomText);
+  if (geom.length < 2) throw new PdsError('The geometry table for this product is empty.');
+
+  onProgress?.(0.05, opt.full ? 'Downloading calibrated radargram' : 'Downloading browse image');
+  const res = await fetchOk(opt.full ? paths.image : paths.browse, signal, 120_000);
+  const buffer = await readWithProgress(res, f => onProgress?.(0.05 + 0.8 * f, opt.full ? 'Downloading calibrated radargram' : 'Downloading browse image'));
+
+  onProgress?.(0.88, 'Decoding');
+  const img = opt.full ? decodeRgramImg(buffer, geom.length) : decodeTiff(buffer);
+  const width = Math.min(img.width, geom.length);
+
+  // To dB. The browse image is already logarithmic over a 35 dB range.
+  const fullDb = new Float32Array(width * img.height);
+  let floor = Infinity;
+  if (opt.full) {
+    let positiveMin = Infinity;
+    for (let i = 0; i < img.values.length; i++) if (img.values[i] > 0 && img.values[i] < positiveMin) positiveMin = img.values[i];
+    floor = 10 * Math.log10(Number.isFinite(positiveMin) ? positiveMin : 1e-12);
+  } else {
+    floor = -BROWSE_RANGE_DB;
+  }
+  for (let s = 0; s < img.height; s++) {
+    for (let t = 0; t < width; t++) {
+      const v = img.values[s * img.width + t];
+      fullDb[s * width + t] = opt.full ? (v > 0 ? 10 * Math.log10(v) : floor) : -BROWSE_RANGE_DB + BROWSE_RANGE_DB * v;
+    }
+  }
+
+  onProgress?.(0.93, 'Finding the surface');
+  const surfaceFull = pickSurface(fullDb, width, img.height);
+  let top = img.height;
+  let bottom = 0;
+  for (let t = 0; t < width; t++) {
+    top = Math.min(top, surfaceFull[t]);
+    bottom = Math.max(bottom, surfaceFull[t]);
+  }
+  const depthRows = opt.depthRows ?? 1200;
+  const r0 = Math.max(0, top - 64);
+  const r1 = Math.min(img.height, bottom + depthRows);
+  const height = r1 - r0;
+  const data = fullDb.slice(r0 * width, r1 * width);
+  const surface = new Uint16Array(width);
+  for (let t = 0; t < width; t++) surface[t] = surfaceFull[t] - r0;
+
+  let powerMin = Infinity;
+  let powerMax = -Infinity;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] < powerMin) powerMin = data[i];
+    if (data[i] > powerMax) powerMax = data[i];
+  }
+
+  const latitudes = new Float64Array(width);
+  const longitudes = new Float64Array(width);
+  const surfaceElevation = new Float32Array(width);
+  const spacecraftAltitude = new Float32Array(width);
+  for (let t = 0; t < width; t++) {
+    const g = geom[t];
+    latitudes[t] = g.latitude;
+    longitudes[t] = ((g.longitude % 360) + 360) % 360;
+    surfaceElevation[t] = (g.marsRadiusKm - REFERENCE_RADIUS_KM) * 1000;
+    spacecraftAltitude[t] = (g.spacecraftRadiusKm - g.marsRadiusKm) * 1000;
+  }
+
+  onProgress?.(1, 'Done');
+  return {
+    metadata: {
+      instrument: 'SHARAD',
+      source: 'pds',
+      orbitNumber: product.orbitNumber,
+      productId: product.productId,
+      acquisitionDate: product.observationTime.slice(0, 10),
+      region: `${product.centerLat.toFixed(1)}°, ${product.centerLon.toFixed(1)}°E`,
+      title: `SHARAD ${product.productId.replace(/_rgram$/i, '').toUpperCase()}`,
+      description: opt.full
+        ? 'Calibrated SHARAD radargram (RGRAM.IMG), US team processing, converted to dB. Power units are arbitrary but consistent across the archive.'
+        : 'SHARAD browse radargram (8-bit TIFF, 35 dB range). Good for looking; power ratios above about 30 dB are clipped.',
+      centerLat: product.centerLat,
+      centerLon: product.centerLon,
+      frequencyHz: SHARAD.centerFrequencyHz,
+      references: [
+        { authors: 'Seu, R. et al.', year: 2007, title: 'SHARAD sounding radar on the Mars Reconnaissance Orbiter', journal: 'JGR 112, E05S05', doi: '10.1029/2006JE002745' },
+        { authors: 'Campbell, B.A.', year: 2021, title: 'MRO SHARAD US radargram archive, version 2', journal: 'NASA Planetary Data System, MRO-M-SHARAD-5-RADARGRAM-V2.0' },
+      ],
+      calibration: opt.full ? 'relative' : 'display',
+    },
+    geometry: { latitudes, longitudes, surfaceElevation, spacecraftAltitude },
+    radargram: {
+      width,
+      height,
+      sampleInterval: SHARAD.sampleIntervalS,
+      traceSpacingM: SHARAD.traceSpacingM,
+      data,
+      powerMin,
+      powerMax,
+    },
+    surfaceEcho: { indices: surface },
+  };
 }

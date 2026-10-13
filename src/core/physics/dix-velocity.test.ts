@@ -97,10 +97,27 @@ describe('buildVRMSProfile', () => {
     expect(profile[0]).toBeGreaterThanOrEqual(profile[511]);
   });
 
-  it('fills constant velocity for empty layer array', () => {
-    const profile = buildVRMSProfile([], 100, 0.1e-6);
+  it('falls back to the bulk permittivity for an empty model', () => {
+    const profile = buildVRMSProfile([], 100, 0.1e-6, 4);
     for (let i = 0; i < 100; i++) {
-      expect(profile[i]).toBeCloseTo(c, -2);
+      expect(profile[i]).toBeCloseTo(c / 2, -2);
     }
+  });
+
+  it('is continuous across a layer boundary', () => {
+    const layers: DixLayer[] = [
+      { permittivity: 3.15, thicknessM: 300 },
+      { permittivity: 9, thicknessM: 300 },
+    ];
+    const dt = 0.0375e-6;
+    const profile = buildVRMSProfile(layers, 400, dt);
+    const boundary = Math.round((2 * 300 * Math.sqrt(3.15)) / c / dt);
+    const jump = Math.abs(profile[boundary + 1] - profile[boundary]);
+    expect(jump / profile[boundary]).toBeLessThan(0.01);
+  });
+
+  it('ignores zero-thickness layers instead of producing NaN', () => {
+    const profile = buildVRMSProfile([{ permittivity: 5, thicknessM: 0 }, { permittivity: 3.15, thicknessM: 100 }], 50, 0.0375e-6);
+    expect(profile.every(v => Number.isFinite(v) && v > 0)).toBe(true);
   });
 });
