@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     { "source": "/pds-data/:match*", "destination": "https://pds-geosciences.wustl.edu/:match*" },
-    { "source": "/((?!assets/|pds-data/|sw\.js|manifest\.webmanifest|favicon\.svg|icon-|og\.png|robots\.txt).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|pds-data/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
