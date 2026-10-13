@@ -103,7 +103,7 @@ export function TimeToDepth() {
         </g>
       ))}
       {layers.slice(0, -1).map((l, i) => (
-        <T key={l.label} x={300} y={(ty(marks[i].t) + ty(marks[i + 1].t)) / 2 + 26} anchor="middle" color={ACCENT}>
+        <T key={l.label} x={290} y={(ty(marks[i].t) + zy(marks[i].z) + ty(marks[i + 1].t) + zy(marks[i + 1].z)) / 4 + 4} anchor="middle" color={ACCENT}>
           ε = {l.eps}: {((2 * Math.sqrt(l.eps)) / c * 1000).toFixed(1)} ns per metre
         </T>
       ))}
@@ -202,7 +202,7 @@ export function AttenuationCurves() {
 
 /* Detection chain ---------------------------------------------------------- */
 
-function Box({ x, y, w, h = 40, title, sub, accent }: { x: number; y: number; w: number; h?: number; title: string; sub?: string; accent?: boolean }) {
+function Box({ x, y, w, h = 40, title, sub, accent }: { x: number; y: number; w: number; h?: number; title: ReactNode; sub?: ReactNode; accent?: boolean }) {
   return (
     <g>
       <rect x={x} y={y} width={w} height={h} fill="var(--c-sunken)" stroke={accent ? ACCENT : LINE} />
@@ -213,6 +213,13 @@ function Box({ x, y, w, h = 40, title, sub, accent }: { x: number; y: number; w:
     </g>
   );
 }
+
+const Sub = ({ children }: { children: ReactNode }) => (
+  <tspan fontSize={9} dy={3}>
+    {children}
+    <tspan dy={-3} />
+  </tspan>
+);
 
 const Arrow = ({ d }: { d: string }) => <path d={d} stroke={FAINT} fill="none" markerEnd="url(#arrow)" />;
 
@@ -230,11 +237,11 @@ export function DetectionChain() {
   return (
     <svg viewBox="0 0 640 230" className="h-auto w-full" role="img" aria-label="From echo powers to a basal permittivity and a hypothesis">
       <ArrowDefs />
-      <Box x={10} y={20} w={150} title="Surface echo P_s" sub="peak at the picked row" />
-      <Box x={10} y={80} w={150} title="Deep echo P_b" sub="largest corrected peak" />
-      <Box x={200} y={50} w={170} title="ΔP = P_b − P_s" sub="dB, so gains cancel" />
-      <Box x={410} y={20} w={220} title="+ R_s − T_s² + L(z)" sub="surface Fresnel, transmission, loss" />
-      <Box x={410} y={90} w={220} title="R_b, basal reflectivity" sub="threshold, ≤ 0 dB, ≥ 3 traces" accent />
+      <Box x={10} y={20} w={150} title={<>Surface echo P<Sub>s</Sub></>} sub="peak at the picked row" />
+      <Box x={10} y={80} w={150} title={<>Deep echo P<Sub>b</Sub></>} sub="largest corrected peak" />
+      <Box x={200} y={50} w={170} title={<>ΔP = P<Sub>b</Sub> − P<Sub>s</Sub></>} sub="dB, so gains cancel" />
+      <Box x={410} y={20} w={220} title={<>+ R<Sub>s</Sub> − T<Sub>s</Sub>² + L(z)</>} sub="surface Fresnel, transmission, loss" />
+      <Box x={410} y={90} w={220} title={<>R<Sub>b</Sub>, basal reflectivity</>} sub="threshold, ≤ 0 dB, ≥ 3 traces" accent />
       <Box x={200} y={160} w={170} title="ε below the base" sub="Fresnel, solved for ε₂" />
       <Box x={410} y={160} w={220} title="Class and hypotheses" sub="water · clay · clutter" />
       <Arrow d="M160 40H185V64H198" />
@@ -267,12 +274,16 @@ export function Architecture() {
       <Box x={428} y={90} w={192} title="Detection, CRISM, PolSAR" />
       <Box x={428} y={140} w={192} title="Migration, Monte Carlo" />
       <Box x={428} y={190} w={192} title="Inversion (FWI)" sub="WebGPU, else CPU" accent />
-      <T x={428} y={262} color={DIM}>cancel = terminate the worker</T>
+      <T x={430} y={248} color={DIM}>cancel = terminate the worker</T>
       <Arrow d="M105 80V118" />
       <Arrow d="M295 80V118" />
       <Arrow d="M190 140H208" />
-      <Arrow d="M190 150C300 250 330 250 426 210" />
-      <Arrow d="M426 60C380 60 380 130 192 132" />
+      <Arrow d="M105 160V198" />
+      <Arrow d="M190 150C200 170 220 180 210 214" />
+      <Arrow d="M382 262H424" />
+      <Arrow d="M426 282H384" />
+      <T x={374} y={266} anchor="end">job and data</T>
+      <T x={374} y={286} anchor="end">results, transferred</T>
     </svg>
   );
 }

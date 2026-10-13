@@ -199,8 +199,9 @@ export default function DocsApp() {
             <span className="hidden sm:inline">Source</span>
           </a>
           <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} label={theme === 'dark' ? 'Light theme' : 'Dark theme'} onClick={() => set('theme', theme === 'dark' ? 'light' : 'dark')} />
-          <Link href="/" className="ml-1 inline-flex h-8 items-center gap-1.5 border border-line-strong px-2.5 text-sm hover:bg-hover">
-            Open the app
+          <Link href="/" className="ml-1 inline-flex h-8 items-center gap-1.5 border border-line-strong px-2.5 text-sm whitespace-nowrap hover:bg-hover">
+            <span className="hidden sm:inline">Open the app</span>
+            <span className="sm:hidden">App</span>
             <Icon name="chevronRight" size={14} />
           </Link>
         </div>
