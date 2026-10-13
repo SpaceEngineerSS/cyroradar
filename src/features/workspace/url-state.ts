@@ -31,12 +31,15 @@ export function shareUrl(): string {
   return `${location.origin}${location.pathname}${hash ? `#${hash}` : ''}`;
 }
 
+/** The hash is read once per page load, even though StrictMode mounts twice. */
+let restored = false;
+
 export function useUrlState() {
   useEffect(() => {
     const p = new URLSearchParams(location.hash.slice(1));
     const scene = p.get('scene');
     const s = useApp.getState();
-    if (scene && SCENES.has(scene)) {
+    if (!restored && scene && SCENES.has(scene)) {
       const tec = Number(p.get('tec'));
       void s.loadSynthetic(scene, Number.isFinite(tec) && p.has('tec') ? Math.min(3, Math.max(0, tec)) : undefined).then(() => {
         const st = useApp.getState();
@@ -51,6 +54,7 @@ export function useUrlState() {
         if (p.get('statics') === '1') st.set('statics', true);
       });
     }
+    restored = true;
 
     let timer = 0;
     const unsub = useApp.subscribe(

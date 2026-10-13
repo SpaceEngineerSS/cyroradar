@@ -16,6 +16,7 @@ import { DEFAULT_UQ, type UQSettings } from '../core/analysis/uncertainty';
 import { DEFAULT_TECU } from '../core/pipeline/synthetic-generator';
 import { getMaterial } from '../core/physics/dielectric';
 import { runJob, JobCancelled } from '../workers/run';
+import { autoContrast } from './derived';
 import { device } from '../app/perf';
 
 export type PanelId =
@@ -203,6 +204,7 @@ export const useApp = create<AppStore>()(
             dataset,
             datasetKey: key,
             datasetStatus: 'done',
+            ...(keepModel ? {} : { contrast: autoContrast(dataset.radargram) }),
             datasetError: null,
             migration: { ...get().migration, status: 'idle', progress: 0, result: null, error: null },
             uq: { ...get().uq, status: 'idle', progress: 0, results: [] },
@@ -528,9 +530,9 @@ export const useApp = create<AppStore>()(
               basalReflectivityDb: a.basalReflectivityDb,
               classification: a.classification,
               confidence: a.confidence,
-              pLiquidWater: a.hypothesis.pLiquidWater,
-              pSmectiteClay: a.hypothesis.pSmectiteClay,
-              pClutter: a.hypothesis.pClutter,
+              pLiquidWater: seg.hypothesis.pLiquidWater,
+              pSmectiteClay: seg.hypothesis.pSmectiteClay,
+              pClutter: seg.hypothesis.pClutter,
               notes: `Traces ${seg.traceStart}–${seg.traceEnd}, ${seg.count} detections.`,
             };
             set({ log: [entry, ...log] });

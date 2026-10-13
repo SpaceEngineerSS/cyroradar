@@ -44,7 +44,7 @@ describe('detection helpers', () => {
     const a = (t: number) =>
       ({
         traceIndex: t, depthM: 100, apparentPermittivity: 30, confidence: 0.9, basalReflectivityDb: -5, clutterWarning: false,
-        hypothesis: { dominantHypothesis: 'liquid-water' },
+        hypothesis: { pLiquidWater: 0.8, pSmectiteClay: 0.1, pClutter: 0.1, dominantHypothesis: 'liquid-water' },
       }) as AnomalyResult;
     const segs = groupDetections([a(1), a(2), a(4), a(20), a(21)]);
     expect(segs.map(s => [s.traceStart, s.traceEnd])).toEqual([[1, 4], [20, 21]]);
@@ -56,7 +56,7 @@ describe('uncertainty', () => {
     const a = { depthM: 1400, relativePowerDb: -4, apparentPermittivity: 35 } as AnomalyResult;
     const [r] = runUncertainty(
       [a],
-      { thresholdDb: -10, hostPermittivity: 3.3, hostLossTangent: 4e-3, minDepthM: 30 },
+      { thresholdDb: -10, hostPermittivity: 3.3, hostLossTangent: 4e-3, minDepthM: 30, minRun: 3 },
       4e6,
       1e-7,
       { nSamples: 3000, permittivitySigma: 0.2, powerSigmaDb: 1.5 },

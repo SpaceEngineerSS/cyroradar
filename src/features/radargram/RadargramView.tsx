@@ -29,10 +29,12 @@ export function RadargramView({ variant, showAxes = true, caption }: Props) {
 
   useEffect(() => {
     const host = hostRef.current!;
-    const imageCanvas = imageRef.current!;
+    let imageCanvas = imageRef.current!;
     const overlayCanvas = overlayRef.current!;
     const octx = overlayCanvas.getContext('2d')!;
-    let renderer: RadargramRenderer = createRenderer(imageCanvas, displayField(useApp.getState(), variant));
+    const made = createRenderer(imageCanvas, displayField(useApp.getState(), variant));
+    let renderer: RadargramRenderer = made.renderer;
+    imageCanvas = made.canvas;
     let palette: Palette = readPalette();
     let dpr = pixelRatio();
     let frame = 0;
@@ -138,7 +140,9 @@ export function RadargramView({ variant, showAxes = true, caption }: Props) {
             const f = displayField(useApp.getState(), variant);
             if (f && renderer.kind === 'webgl2' && (f.width > 8192 || f.height > 8192)) {
               prev.dispose();
-              renderer = createRenderer(imageCanvas, f);
+              const next = createRenderer(imageCanvas, f);
+              renderer = next.renderer;
+              imageCanvas = next.canvas;
             }
             resize();
           }

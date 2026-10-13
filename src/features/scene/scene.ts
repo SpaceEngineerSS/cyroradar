@@ -239,7 +239,6 @@ export function createScene(canvas: HTMLCanvasElement, ds: CryoDataset, opt: Sce
       grid.geometry.dispose();
       (grid.material as THREE.Material).dispose();
       renderer.dispose();
-      renderer.forceContextLoss();
     },
   };
 }

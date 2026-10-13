@@ -156,7 +156,7 @@ export function generateReport(): void {
     table(
       ['Seg', 'Traces', 'Depth m', 'Base eps', 'R dB', 'Class', 'P water', 'P clay', 'P clutter'],
       s.segments.map((seg, i) => {
-        const a = s.anomalies[seg.representative];
+        const h = seg.hypothesis;
         return [
           segmentLetter(i),
           `${seg.traceStart}-${seg.traceEnd}`,
@@ -164,9 +164,9 @@ export function generateReport(): void {
           seg.meanPermittivity.toFixed(1),
           seg.peakReflectivityDb.toFixed(1),
           CLASS_LABELS[seg.classification],
-          (a.hypothesis.pLiquidWater * 100).toFixed(0) + '%',
-          (a.hypothesis.pSmectiteClay * 100).toFixed(0) + '%',
-          (a.hypothesis.pClutter * 100).toFixed(0) + '%',
+          (h.pLiquidWater * 100).toFixed(0) + '%',
+          (h.pSmectiteClay * 100).toFixed(0) + '%',
+          (h.pClutter * 100).toFixed(0) + '%',
         ];
       }),
       [10, 22, 16, 16, 13, 42, 16, 14, 14],

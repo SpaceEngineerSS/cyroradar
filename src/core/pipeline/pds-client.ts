@@ -23,8 +23,17 @@ import { SHARAD } from '../physics/constants';
 const ODE_BASE = 'https://oderest.rsl.wustl.edu/live2';
 const PDS_HOST = 'https://pds-geosciences.wustl.edu';
 const PROXY = '/pds-data';
-/** Mean areoid radius used to turn planetary radius into elevation, km. */
-const REFERENCE_RADIUS_KM = 3396.19;
+/** IAU 2000 Mars ellipsoid, km. Elevations are relative to it (the areoid differs by up to ~2 km). */
+const ELLIPSOID_A_KM = 3396.19;
+const ELLIPSOID_B_KM = 3376.2;
+
+/** Ellipsoid radius at a planetocentric latitude, km. */
+export function ellipsoidRadiusKm(latDeg: number): number {
+  const p = (latDeg * Math.PI) / 180;
+  const a = ELLIPSOID_A_KM;
+  const b = ELLIPSOID_B_KM;
+  return (a * b) / Math.sqrt((b * Math.cos(p)) ** 2 + (a * Math.sin(p)) ** 2);
+}
 const BROWSE_RANGE_DB = 35;
 
 /* Small LRU cache for search results ------------------------------------- */
@@ -407,7 +416,7 @@ export async function loadSharadProduct(product: PDSProduct, opt: LoadOptions): 
     const g = geom[t];
     latitudes[t] = g.latitude;
     longitudes[t] = ((g.longitude % 360) + 360) % 360;
-    surfaceElevation[t] = (g.marsRadiusKm - REFERENCE_RADIUS_KM) * 1000;
+    surfaceElevation[t] = (g.marsRadiusKm - ellipsoidRadiusKm(g.latitude)) * 1000;
     spacecraftAltitude[t] = (g.spacecraftRadiusKm - g.marsRadiusKm) * 1000;
   }
 

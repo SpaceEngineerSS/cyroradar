@@ -12,9 +12,9 @@
  *   4. A Gaussian range pulse with a width set by the bandwidth (≈ 1/B).
  *   5. Optional off-nadir clutter: weak surface returns that land at subsurface
  *      delays because of their cross-track range.
- *   6. Complex white noise at the scene's noise floor.
- *   7. Residual ionospheric dispersion after correction, modelled as a smear
- *      whose width scales with TEC and with 1/f² across the band.
+ *   6. Residual ionospheric dispersion after correction, modelled as a smear
+ *      of the echoes whose width scales with TEC and with 1/f² across the band.
+ *   7. Complex white receiver noise at the scene's noise floor.
  *
  * Values are stored as power in dB relative to a perfect reflector at the
  * spacecraft range, so a water-ice surface sits near −11 dB.
@@ -111,7 +111,7 @@ const SCENES: SceneConfig[] = [
     regionalSlopeMPerKm: 0.4,
     surfaceRoughnessM: 0.4,
     layers: [
-      { label: 'SPLD, dusty water ice', permittivity: 3.3, lossTangent: 4e-3, thicknessM: 1450, roughnessM: 0.8, undulationM: 45 },
+      { label: 'SPLD, dusty water ice', permittivity: 3.3, lossTangent: 4e-3, thicknessM: 1450, roughnessM: 0.8, undulationM: 22 },
       {
         label: 'Basement rock', permittivity: 7, lossTangent: 0.02, thicknessM: 0, roughnessM: 0,
         patches: [
@@ -178,8 +178,8 @@ const SCENES: SceneConfig[] = [
     numTraces: 700,
     traceSpacingM: 460,
     elevationBaseM: -3200,
-    reliefM: 180,
-    regionalSlopeMPerKm: 1.8,
+    reliefM: 110,
+    regionalSlopeMPerKm: 0.5,
     surfaceRoughnessM: 1.5,
     layers: [
       { label: 'Debris cover', permittivity: 5.5, lossTangent: 0.01, thicknessM: 12, roughnessM: 1, undulationM: 3 },
@@ -462,14 +462,26 @@ function renderScene(cfg: SceneConfig, tecu: number): CryoDataset {
       addEcho(surfDelay + c.delay + c.curvature * dx * dx, p, 0.3);
     }
 
+    // The ionosphere smears the echoes on their way up; receiver noise is added
+    // afterwards, so only the echo power is blurred.
+    if (ionoKernel) {
+      for (let s = 0; s < H; s++) pow[s] = re[s] * re[s] + im[s] * im[s];
+      const smeared = convolve(pow, ionoKernel);
+      for (let s = 0; s < H; s++) {
+        const k = pow[s] > 1e-30 ? Math.sqrt(smeared[s] / pow[s]) : 0;
+        if (k > 0) {
+          re[s] *= k;
+          im[s] *= k;
+        } else {
+          re[s] = Math.sqrt(smeared[s]);
+        }
+      }
+    }
     for (let s = 0; s < H; s++) {
       const r = re[s] + noiseAmp * gaussian(rng);
       const q = im[s] + noiseAmp * gaussian(rng);
-      pow[s] = r * r + q * q;
+      data[s * W + t] = 10 * Math.log10(Math.max(r * r + q * q, floorPower));
     }
-
-    const out = ionoKernel ? convolve(pow, ionoKernel) : pow;
-    for (let s = 0; s < H; s++) data[s * W + t] = 10 * Math.log10(Math.max(out[s], floorPower));
   }
 
   let powerMin = Infinity;

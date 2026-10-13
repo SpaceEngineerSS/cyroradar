@@ -6,7 +6,6 @@ import { EmptyState, Note } from '../../ui/controls';
 
 export default function SceneView() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const dataset = useApp(s => s.dataset);
   const layers = useApp(s => s.layers);
   const bulk = useApp(s => s.bulkPermittivity);
@@ -14,14 +13,21 @@ export default function SceneView() {
 
   useEffect(() => {
     const host = hostRef.current;
-    const canvas = canvasRef.current;
-    if (!host || !canvas || !dataset) return;
+    if (!host || !dataset) return;
+    // A fresh canvas per mount: a WebGL context cannot be recreated on a canvas
+    // that has already handed one out and had it released.
+    const canvas = document.createElement('canvas');
+    canvas.className = 'absolute inset-0 h-full w-full touch-none';
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', '3D view of the radargram below the surface profile');
+    host.appendChild(canvas);
     let scene: ReturnType<typeof createScene>;
     try {
       const bg = getComputedStyle(document.documentElement).getPropertyValue('--c-plot-bg').trim() || '#080807';
       scene = createScene(canvas, dataset, { segments: device.sceneSegments, model: velocityLayers(layers), bulkPermittivity: bulk }, bg);
     } catch (err) {
       queueMicrotask(() => setError(err instanceof Error ? err.message : String(err)));
+      canvas.remove();
       return;
     }
     const s = useApp.getState();
@@ -45,6 +51,7 @@ export default function SceneView() {
       ro.disconnect();
       unsubs.forEach(u => u());
       scene.dispose();
+      canvas.remove();
     };
   }, [dataset, layers, bulk]);
 
@@ -58,9 +65,7 @@ export default function SceneView() {
       {error ? (
         <div className="p-4"><Note tone="error">The 3D view could not start: {error}</Note></div>
       ) : (
-        <div ref={hostRef} className="plot relative min-h-0 flex-1">
-          <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" role="img" aria-label="3D view of the radargram below the surface profile" />
-        </div>
+        <div ref={hostRef} className="plot relative min-h-0 flex-1" />
       )}
     </div>
   );

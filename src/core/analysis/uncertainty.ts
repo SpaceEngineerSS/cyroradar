@@ -66,7 +66,7 @@ export function runUncertainty(
       const depth = (dt * SPEED_OF_LIGHT) / (2 * Math.sqrt(eh));
       const s = fresnelReflection(1, eh);
       const rb = dP + s.reflectionDb - 10 * Math.log10(s.transmissionCoefficient ** 2) + 2 * lossDbPerMeter(frequencyHz, eh, tan) * depth;
-      const eb = invertFresnel(10 ** (rb / 10), eh);
+      const eb = Math.min(100, invertFresnel(10 ** (Math.min(0, rb) / 10), eh));
       depths[k] = depth;
       basal[k] = eb;
       if (eb >= WET_PERMITTIVITY) wet++;

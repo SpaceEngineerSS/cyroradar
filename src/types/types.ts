@@ -144,6 +144,8 @@ export interface DetectionParams {
   hostLossTangent: number;
   /** Ignore echoes shallower than this, metres below the surface. */
   minDepthM: number;
+  /** Drop runs of detections shorter than this many traces. */
+  minRun: number;
 }
 
 export interface AnomalyResult {

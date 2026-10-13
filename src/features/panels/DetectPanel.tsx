@@ -50,6 +50,7 @@ function Settings() {
         <NumberField label="Overburden tan δ" value={det.hostLossTangent} min={0} max={0.1} step={0.0005} onChange={v => setDet({ hostLossTangent: v })} />
         <NumberField label="Threshold" value={det.thresholdDb} min={-30} max={0} step={0.5} unit="dB" onChange={v => setDet({ thresholdDb: v })} hint="Basal reflectivity" />
         <NumberField label="Ignore above" value={det.minDepthM} min={0} max={2000} step={5} unit="m" onChange={v => setDet({ minDepthM: v })} hint="Skips surface sidelobes" />
+        <NumberField label="Shortest run" value={det.minRun} min={1} max={50} step={1} unit="tr" onChange={v => setDet({ minRun: Math.round(v) })} hint="Drops isolated hits" />
       </div>
       <Checkbox label="Use CRISM context" hint="Simulated clay and hydration indices along the track" checked={useCrism} onChange={v => set('useCrism', v)} />
     </Section>
@@ -65,7 +66,7 @@ function SegmentDetail({ index }: { index: number }) {
   const set = useApp(s => s.set);
   const calibration = useApp(s => s.dataset?.metadata.calibration);
   if (!seg || !a) return null;
-  const h = a.hypothesis;
+  const h = seg.hypothesis;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
@@ -78,7 +79,7 @@ function SegmentDetail({ index }: { index: number }) {
       </div>
       <div className="grid grid-cols-3 gap-3">
         <Readout label="Depth" value={uq ? `${uq.meanDepthM.toFixed(0)} ± ${uq.stdDevM.toFixed(0)}` : seg.meanDepthM.toFixed(0)} unit="m" />
-        <Readout label="Base ε" value={seg.meanPermittivity.toFixed(1)} tone="signal" />
+        <Readout label="Base ε" value={seg.meanPermittivity >= 99.5 ? '≥ 100' : seg.meanPermittivity.toFixed(1)} tone="signal" />
         <Readout label="Reflectivity" value={seg.peakReflectivityDb.toFixed(1)} unit="dB" />
         <Readout label="Echo vs surface" value={a.relativePowerDb.toFixed(1)} unit="dB" />
         <Readout label="SNR" value={a.snrDb.toFixed(0)} unit="dB" />
@@ -88,7 +89,7 @@ function SegmentDetail({ index }: { index: number }) {
       {calibration === 'display' && <Note tone="warn">This is a browse image with a 35 dB greyscale range, so strong ratios are clipped. Load calibrated power for numbers you can rely on.</Note>}
 
       <div className="flex flex-col gap-2.5">
-        <h5 className="label">What could it be, at the strongest trace</h5>
+        <h5 className="label">What could it be (averaged over the segment)</h5>
         <Meter label={HYP_LABEL['liquid-water']} value={h.pLiquidWater} color="var(--c-water)" />
         <Meter label={HYP_LABEL['smectite-clay']} value={h.pSmectiteClay} color="var(--c-clay)" />
         <Meter label={HYP_LABEL.clutter} value={h.pClutter} color="var(--c-clutter)" />

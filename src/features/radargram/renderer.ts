@@ -80,8 +80,9 @@ function createWebGL(canvas: HTMLCanvasElement): RadargramRenderer | null {
     gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERT));
     gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAG));
     gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
-  } catch {
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? 'link failed');
+  } catch (err) {
+    console.warn('[CryoRadar] WebGL2 radargram renderer unavailable, using Canvas 2D.', err);
     return null;
   }
 
@@ -188,7 +189,8 @@ function createWebGL(canvas: HTMLCanvasElement): RadargramRenderer | null {
       gl.deleteBuffer(vbo);
       gl.deleteVertexArray(vao);
       gl.deleteProgram(program);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      // No loseContext(): the canvas may be reused by the next mount (StrictMode
+      // mounts twice), and a lost context cannot be recovered on the same canvas.
     },
   };
 }
@@ -260,11 +262,22 @@ function create2D(canvas: HTMLCanvasElement): RadargramRenderer {
   };
 }
 
-export function createRenderer(canvas: HTMLCanvasElement, field: DisplayField | null): RadargramRenderer {
+/**
+ * A canvas keeps the first kind of context it hands out, so if the WebGL path
+ * fails after creating a context, the 2D renderer gets a fresh canvas that
+ * takes the old one's place in the DOM.
+ */
+export function createRenderer(canvas: HTMLCanvasElement, field: DisplayField | null): { renderer: RadargramRenderer; canvas: HTMLCanvasElement } {
   const tooLarge = field && (field.width > 8192 || field.height > 8192);
   if (!tooLarge) {
     const gl = createWebGL(canvas);
-    if (gl) return gl;
+    if (gl) return { renderer: gl, canvas };
   }
-  return create2D(canvas);
+  let target = canvas;
+  if (!canvas.getContext('2d')) {
+    target = document.createElement('canvas');
+    target.className = canvas.className;
+    canvas.replaceWith(target);
+  }
+  return { renderer: create2D(target), canvas: target };
 }

@@ -3,6 +3,7 @@
 
 import type { CryoDataset } from '../types/types';
 import type { AppStore } from './app';
+import { estimateNoiseFloorDb } from '../core/analysis/anomaly-detector';
 
 export interface StaticShifts {
   /** Rows to move each trace up by (data row − shift = displayed row). */
@@ -53,3 +54,21 @@ export function displayField(s: Pick<AppStore, 'dataset' | 'migration' | 'static
 }
 
 export const shiftAt = (shifts: Int16Array | null, trace: number) => (shifts ? shifts[Math.max(0, Math.min(shifts.length - 1, trace))] : 0);
+
+/**
+ * Black and white points (as fractions of the dB range). The black point sits
+ * a little above the noise floor (median of the deepest rows), so noise reads
+ * as dark grain; the white point is a high percentile of the whole field.
+ */
+export function autoContrast(f: Pick<DisplayField, 'data' | 'powerMin' | 'powerMax' | 'width' | 'height'>, hi = 0.9985): [number, number] {
+  const step = Math.max(1, Math.floor(f.data.length / 200_000));
+  const vals: number[] = [];
+  for (let i = 0; i < f.data.length; i += step) vals.push(f.data[i]);
+  vals.sort((a, b) => a - b);
+  const q = (p: number) => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))];
+  const noise = estimateNoiseFloorDb(f.data, f.width, f.height);
+  const span = f.powerMax - f.powerMin || 1;
+  const top = q(hi);
+  const black = Math.min(noise + 3, top - 10);
+  return [Math.max(0, (black - f.powerMin) / span), Math.min(1, (top - f.powerMin) / span)];
+}

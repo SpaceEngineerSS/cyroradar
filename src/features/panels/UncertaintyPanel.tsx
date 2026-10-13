@@ -73,7 +73,7 @@ export default function UncertaintyPanel() {
               <div className="grid grid-cols-[22px_1fr_44px] gap-2 text-2xs text-faint">
                 <span />
                 <span className="relative h-3">
-                  {[1, 3, 6, 15, 25, 100].map(v => (
+                  {[1, 3, 6, 15, 25].map(v => (
                     <span key={v} className="num absolute -translate-x-1/2" style={{ left: `${x(v)}%` }}>{v}</span>
                   ))}
                 </span>

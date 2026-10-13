@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useApp } from '../../store/app';
-import { displayField } from '../../store/derived';
+import { displayField, autoContrast as contrastFor } from '../../store/derived';
 import { getAllColormaps, colormapCss } from '../../core/colormaps/colormaps';
 import { Button, Checkbox, Section, Segmented, Slider } from '../../ui/controls';
 import { cx } from '../../ui/cx';
@@ -10,13 +10,8 @@ function autoContrast() {
   const s = useApp.getState();
   const f = displayField(s, s.variant);
   if (!f) return;
-  const step = Math.max(1, Math.floor(f.data.length / 200_000));
-  const vals: number[] = [];
-  for (let i = 0; i < f.data.length; i += step) vals.push(f.data[i]);
-  vals.sort((a, b) => a - b);
-  const q = (p: number) => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))];
-  const span = f.powerMax - f.powerMin || 1;
-  s.setContrast((q(0.35) - f.powerMin) / span, (q(0.9985) - f.powerMin) / span);
+  const [lo, hi] = contrastFor(f);
+  s.setContrast(lo, hi);
 }
 
 export default function ViewPanel() {

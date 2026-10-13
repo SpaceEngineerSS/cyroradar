@@ -26,10 +26,10 @@ export default function Workspace() {
     return () => window.removeEventListener('keydown', onKey);
   }, [navigate]);
 
-  // Phones start with the plot visible.
+  // Phones and tablets start with the plot visible; the panel opens on demand.
   useEffect(() => {
-    if (phone) useApp.getState().set('inspectorOpen', false);
-  }, [phone]);
+    if (!desktop) useApp.getState().set('inspectorOpen', false);
+  }, [desktop]);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">

@@ -121,7 +121,9 @@ function drawMap(ctx: CanvasRenderingContext2D, W: number, H: number, frame: Fra
     ctx.setLineDash([3, 3]);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillText(r.name, pts[0][0] + 3, pts[0][1] - 4);
+    // Label at the box's outermost corner, away from the track inside it.
+    const far = pts.reduce((a, b) => (Math.hypot(b[0] - W / 2, b[1] - H / 2) > Math.hypot(a[0] - W / 2, a[1] - H / 2) ? b : a));
+    ctx.fillText(r.name, far[0] + (far[0] > W / 2 ? 4 : -ctx.measureText(r.name).width - 4), far[1] + (far[1] > H / 2 ? 12 : -4));
   }
   if (frame === 'global') {
     for (const sc of scenes) {
@@ -275,7 +277,7 @@ export default function TrackMapView() {
       </div>
       <div className="flex items-center justify-between border-y border-line bg-raised px-4 py-1">
         <span className="label">Surface elevation along the track</span>
-        <span className="text-2xs text-faint">{dataset.metadata.source === 'pds' ? 'From planetary radius in GEOM.TAB, relative to 3396.19 km' : 'Simulated'}</span>
+        <span className="text-2xs text-faint">{dataset.metadata.source === 'pds' ? 'From planetary radius in GEOM.TAB, relative to the IAU ellipsoid' : 'Simulated'}</span>
       </div>
       <div ref={profHost} className="plot relative min-h-[110px] flex-1">
         <canvas ref={profCanvas} className="absolute inset-0 h-full w-full" role="img" aria-label="Surface elevation profile" />

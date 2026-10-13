@@ -195,11 +195,13 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, v: Viewport, input: O
       polyline(t => surf[t] + off);
       ctx.setLineDash([]);
       if (input.showAxes) {
-        const tl = Math.min(t1, Math.max(t0, t0 + 2));
-        const y = sy(surf[tl] + off, tl);
-        if (y > 12 && y < v.height - 4 && pxPerM * step > 14) {
+        // Depth labels sit on the right edge; the time axis owns the left.
+        const tr = Math.max(t0, Math.min(t1, Math.floor((v.width - 8 - v.offsetX) / v.scaleX)));
+        const y = sy(surf[tr] + off, tr);
+        if (y > 12 && y < v.height - 22 && pxPerM * step > 14) {
+          const label = d >= 1000 ? `${Number((d / 1000).toFixed(2))} km` : `${d} m`;
           ctx.fillStyle = P.faint;
-          ctx.fillText(`${d >= 1000 ? `${d / 1000} km` : `${d} m`}`, sx(tl) + 6, y - 3);
+          ctx.fillText(label, v.width - ctx.measureText(label).width - 8, y - 3);
         }
       }
     }

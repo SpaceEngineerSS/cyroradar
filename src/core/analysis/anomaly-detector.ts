@@ -14,7 +14,10 @@
  *
  * The candidate with the largest R_b below `minDepthM` is kept if it clears the
  * threshold and stands at least 10 dB above the noise floor. R_b is then
- * inverted for the permittivity under the interface.
+ * inverted for the permittivity under the interface. A reflectivity above
+ * 0 dB is physically impossible for a passive interface, so such echoes are
+ * dropped: they come from clutter, focusing artefacts or uncalibrated data.
+ * Isolated detections shorter than `minRun` traces are dropped as noise.
  *
  *   Orosei et al. (2018), Science 361, 490–493
  *   Lauro et al. (2021), Nature Astronomy 5, 63–70
@@ -31,7 +34,11 @@ export const DEFAULT_DETECTION: DetectionParams = {
   hostPermittivity: 3.15,
   hostLossTangent: 2e-3,
   minDepthM: 30,
+  minRun: 3,
 };
+
+/** Above this the Fresnel inversion is meaningless; report it as "≥ 100". */
+export const MAX_PERMITTIVITY = 100;
 
 export const CLUTTER_SLOPE_DEG = 2;
 const MIN_SNR_DB = 10;
@@ -127,9 +134,9 @@ export function scanForBrightReflections(
       if (!best || rb > best.rb) best = { s, pb: v, rb, depth };
     }
 
-    if (!best || best.rb < params.thresholdDb) continue;
+    if (!best || best.rb < params.thresholdDb || best.rb > 0) continue;
 
-    const apparentPermittivity = invertFresnel(10 ** (best.rb / 10), eh);
+    const apparentPermittivity = Math.min(MAX_PERMITTIVITY, invertFresnel(10 ** (best.rb / 10), eh));
     if (!Number.isFinite(apparentPermittivity)) continue;
 
     const snrDb = best.pb - noiseDb;
@@ -158,7 +165,20 @@ export function scanForBrightReflections(
     });
   }
 
-  return results;
+  return dropShortRuns(results, params.minRun ?? 1);
+}
+
+function dropShortRuns(list: AnomalyResult[], minRun: number): AnomalyResult[] {
+  if (minRun <= 1) return list;
+  const keep: AnomalyResult[] = [];
+  let i = 0;
+  while (i < list.length) {
+    let j = i;
+    while (j + 1 < list.length && list[j + 1].traceIndex - list[j].traceIndex <= 2) j++;
+    if (j - i + 1 >= minRun) for (let k = i; k <= j; k++) keep.push(list[k]);
+    i = j + 1;
+  }
+  return keep;
 }
 
 /** Contiguous runs of detections, which is how people actually talk about them. */
@@ -173,8 +193,10 @@ export interface DetectionSegment {
   meanConfidence: number;
   classification: AnomalyClass;
   dominantHypothesis: AnomalyResult['hypothesis']['dominantHypothesis'];
+  /** Hypothesis probabilities averaged over the members. */
+  hypothesis: AnomalyResult['hypothesis'];
   clutterFraction: number;
-  /** Index into the detection array of the strongest member. */
+  /** Index into the detection array of the member with the median permittivity. */
   representative: number;
 }
 
@@ -185,15 +207,21 @@ export function groupDetections(anomalies: readonly AnomalyResult[], maxGap = 3)
     let j = i;
     while (j + 1 < anomalies.length && anomalies[j + 1].traceIndex - anomalies[j].traceIndex <= maxGap + 1) j++;
     const members = anomalies.slice(i, j + 1);
-    let rep = i;
     let depth = 0;
+    let peak = i;
+    let pw = 0;
+    let pc = 0;
+    let pk = 0;
     let eps = 0;
     let conf = 0;
     let clutter = 0;
     const votes = { 'liquid-water': 0, 'smectite-clay': 0, clutter: 0 };
     for (let k = i; k <= j; k++) {
       const a = anomalies[k];
-      if (a.basalReflectivityDb > anomalies[rep].basalReflectivityDb) rep = k;
+      if (a.basalReflectivityDb > anomalies[peak].basalReflectivityDb) peak = k;
+      pw += a.hypothesis.pLiquidWater;
+      pc += a.hypothesis.pSmectiteClay;
+      pk += a.hypothesis.pClutter;
       depth += a.depthM;
       eps += a.apparentPermittivity;
       conf += a.confidence;
@@ -203,6 +231,10 @@ export function groupDetections(anomalies: readonly AnomalyResult[], maxGap = 3)
     const n = members.length;
     const meanPermittivity = eps / n;
     const dominantHypothesis = (Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0]) as DetectionSegment['dominantHypothesis'];
+    // The representative is the member with the median permittivity, so one
+    // noisy trace does not speak for the whole segment.
+    const order = members.map((m, k) => [m.apparentPermittivity, i + k] as const).sort((a, b) => a[0] - b[0]);
+    const rep = order[Math.floor(order.length / 2)][1];
     segments.push({
       id: segments.length,
       traceStart: anomalies[i].traceIndex,
@@ -210,10 +242,11 @@ export function groupDetections(anomalies: readonly AnomalyResult[], maxGap = 3)
       count: n,
       meanDepthM: depth / n,
       meanPermittivity,
-      peakReflectivityDb: anomalies[rep].basalReflectivityDb,
+      peakReflectivityDb: anomalies[peak].basalReflectivityDb,
       meanConfidence: conf / n,
       classification: classifyAnomaly(meanPermittivity),
       dominantHypothesis,
+      hypothesis: { pLiquidWater: pw / n, pSmectiteClay: pc / n, pClutter: pk / n, dominantHypothesis },
       clutterFraction: clutter / n,
       representative: rep,
     });

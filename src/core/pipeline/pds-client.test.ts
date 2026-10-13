@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decodeTiff, parseGeometryTable, productPaths, footprintToLatLon, pickSurface } from './pds-client';
+import { decodeTiff, parseGeometryTable, productPaths, footprintToLatLon, pickSurface, ellipsoidRadiusKm } from './pds-client';
 import { parseMatrix } from './file-import';
 import type { PDSProduct } from '../../types/pds-types';
 
@@ -48,6 +48,14 @@ describe('PDS client', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].latitude).toBeCloseTo(-74.8272, 4);
     expect(rows[0].spacecraftRadiusKm - rows[0].marsRadiusKm).toBeCloseTo(246.643, 3);
+  });
+
+  it('turns polar planetary radius into a sensible elevation', () => {
+    // GEOM.TAB at -74.83° reports 3379.49 km; that is about +0.5 km on the ellipsoid, not -17 km.
+    const elev = (3379.49 - ellipsoidRadiusKm(-74.8272)) * 1000;
+    expect(Math.abs(elev)).toBeLessThan(3000);
+    expect(ellipsoidRadiusKm(0)).toBeCloseTo(3396.19, 6);
+    expect(ellipsoidRadiusKm(90)).toBeCloseTo(3376.2, 6);
   });
 
   it('derives file paths from the label URL', () => {

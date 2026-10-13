@@ -2,7 +2,7 @@
  *
  *   P(H | evidence) ∝ P(evidence | H) · P(H)
  *
- *   H₁ liquid water / brine   high ε, deep, flat surface above
+ *   H₁ liquid water / brine   ε above ~20 (brines span roughly 25–90), deep, flat surface above
  *   H₂ smectite clay          ε ≈ 10–17 at ~200 K, favoured by CRISM clay signatures
  *   H₃ off-nadir clutter      a surface echo arriving late; favoured by slopes and shallow delays
  *
@@ -39,7 +39,9 @@ export function computeHypothesisMatrix(ev: HypothesisEvidence): HypothesisMatri
   const depth = Math.max(0, ev.depthM);
 
   // Permittivity: water and clay have characteristic ranges, clutter does not.
-  let lWater = normalPdf(eps, 40, 15);
+  // Water/brine is a plateau from ~22 upward rather than a peak: an estimate of
+  // 120 is noisy, but it is not evidence against a wet base.
+  let lWater = logistic((eps - 22) / 2.5) / 70;
   let lClay = normalPdf(eps, 13, 4);
   let lClutter = 1 / 60;
 
