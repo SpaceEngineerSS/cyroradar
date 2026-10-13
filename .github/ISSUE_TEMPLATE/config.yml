@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://cyroradar.vercel.app/docs
+    about: How each calculation works and what it leaves out.
+  - name: Security report
+    url: https://github.com/SpaceEngineerSS/cyroradar/security/advisories/new
+    about: Please report vulnerabilities privately.

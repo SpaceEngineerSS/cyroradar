@@ -575,7 +575,7 @@ export function velocityLayers(layers: readonly SubsurfaceLayer[]) {
 }
 
 /** Overburden properties to start detection with: the thickest layer of the scene model, or clean ice. */
-export function suggestHost(dataset: CryoDataset): { permittivity: number; lossTangent: number } {
+function suggestHost(dataset: CryoDataset): { permittivity: number; lossTangent: number } {
   const t = dataset.truth;
   if (!t) return { permittivity: 3.15, lossTangent: 2e-3 };
   const finite = t.layers.slice(0, -1);

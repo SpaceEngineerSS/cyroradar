@@ -1,0 +1,49 @@
+# How it is built
+
+CryoRadar is a static single-page app: React 19, TypeScript, Vite, Tailwind CSS 4, three.js for the 3D view, Motion for interface transitions, and jsPDF for reports. There is no server of its own; the only network traffic is to NASA's archive.
+
+<Figure caption="The main thread draws and holds state; every calculation that takes more than a few milliseconds runs in a worker.">
+  <Architecture />
+</Figure>
+
+## State
+
+One Zustand store holds the dataset, display settings, depth model, analysis results and the log. Components subscribe to narrow slices, so changing the colour table does not re-render the Detection panel. Pan, zoom and the pointer position live in a separate small store that the canvases subscribe to directly: dragging the radargram never re-renders a React component.
+
+The log, theme, mode and colour table persist in local storage. Everything else lives for the session, or in a session file you save.
+
+## Drawing the radargram
+
+The radargram is uploaded once as a half-float texture. A fragment shader maps each screen pixel back to a trace and a sample, applies the static-correction shift, looks up the colour table and applies contrast, all as uniforms. Panning, zooming, dragging the contrast sliders and switching colour tables each cost a single draw call.
+
+Where WebGL 2 is not available, a Canvas 2D path colourises the field once into an off-screen bitmap with a packed lookup table and scales it on pan and zoom. Annotations are drawn on a second canvas, in one pass per animation frame.
+
+## Workers
+
+Scene generation, PDS decoding, detection, CRISM and polarimetry simulation, migration, the Monte Carlo and the inversion all run in a module worker. Each job gets its own worker, which is terminated when the job ends; cancelling a job simply terminates it, which is the only reliable way to stop a tight numeric loop. Results that contain typed arrays are transferred rather than copied.
+
+## The inversion on the GPU
+
+The WebGPU backend records every time step of a simulation as a compute dispatch in one pass. Per-step parameters (the wavelet sample, which receivers to record, which snapshot to store) sit in one uniform buffer addressed with dynamic offsets, so the CPU never waits on the GPU in the middle of a simulation. Snapshots for the velocity gradient go to a single storage buffer. If WebGPU is missing or the grid will not fit the device's limits, the CPU backend runs the same scheme.
+
+## Performance on small devices
+
+At start-up the app sorts the device into a low, mid or high tier from its memory, core count, pointer type and data-saver setting. The tier caps the canvas pixel ratio, the 3D mesh resolution and the inversion grid, and on low-tier devices turns interface motion off. Panels, views, the docs, three.js and jsPDF are all loaded only when first used; the first screen needs about 130 kB of compressed script.
+
+A service worker caches the built assets, so after one visit the app and its simulated scenes open without a network.
+
+## Tests
+
+`npm test` runs the Vitest suite over the physics and analysis code: hand-computed Fresnel and attenuation values, round trips through layered depth conversion, link-budget sanity, hypothesis monotonicity, a TIFF fixture and a real GEOM.TAB row, migration of a flat reflector, a finite-difference check of the inversion gradient, recovery of a buried block by the inversion, and a regression test that the detector finds exactly the two brine patches in the Planum Australe scene.
+
+## Source layout
+
+| Folder | Holds |
+| --- | --- |
+| `src/core` | physics, analysis, data pipeline, exports; no React |
+| `src/workers` | the compute worker and the job runner |
+| `src/store` | application state and derived values |
+| `src/features` | the interface, one folder per area |
+| `src/ui` | buttons, fields, icons and other building blocks |
+| `src/docs` | these pages and their figures |
+| `scripts` | the screenshot and icon generator |

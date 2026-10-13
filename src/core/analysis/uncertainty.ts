@@ -27,7 +27,7 @@ export interface UQSettings {
 
 export const DEFAULT_UQ: UQSettings = { nSamples: 2000, permittivitySigma: 0.25, powerSigmaDb: 1.5 };
 
-export const WET_PERMITTIVITY = 25;
+const WET_PERMITTIVITY = 25;
 
 function quantile(sorted: Float64Array, q: number): number {
   const pos = q * (sorted.length - 1);

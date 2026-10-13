@@ -1,0 +1,70 @@
+# Bright basal reflections
+
+In 2018 Orosei and colleagues reported a 20 km wide area under the south polar cap where the MARSIS echo from the base of the ice was brighter than the echo from the surface, and argued that only liquid water, probably brine, could reflect that strongly. Others have since argued for conductive clays, or for echoes from the side. The detector in CryoRadar follows the same reasoning, and the hypothesis panel shows the competing explanations side by side.
+
+<Shot src="detection.jpg" alt="Planum Australe with two detected segments and the Detection panel showing classes and depths" caption="Planum Australe, simulated, after a scan. Two segments (A and B) sit exactly over the brine patches the simulator placed at the base." />
+
+## How a trace is scanned
+
+For each column the detector:
+
+1. Re-centres the surface pick on the local maximum and reads its power $P_s$.
+2. Looks below a minimum depth (30 m by default, to skip the surface pulse) for local peaks at least 10 dB above the noise floor.
+3. For each peak at depth $z$, estimates the reflectivity of the interface it came from:
+
+$$
+R_b = (P_b - P_s) + R_s - 10\log_{10}T_s^2 + L(z)
+$$
+
+where $R_s$ is the surface reflectivity for the overburden you assume, $T_s^2$ the two-way transmission through the surface, and $L(z)$ the two-way dielectric loss down to that depth. Everything is in dB, so any unknown instrument gain cancels.
+
+4. Keeps the peak with the largest $R_b$, if it clears the threshold (−10 dB by default) and is not above 0 dB, which no passive interface can produce.
+5. Solves the Fresnel equation for the permittivity below the interface.
+
+Runs shorter than three neighbouring traces are dropped as noise, and the rest are grouped into segments labelled A, B, C.
+
+<Figure caption="From two echo powers to a basal permittivity. The overburden permittivity and loss tangent are the assumptions that matter most.">
+  <DetectionChain />
+</Figure>
+
+## What the result depends on
+
+The two settings that change answers most are the **overburden permittivity** and its **loss tangent**. Too little assumed loss makes deep reflectors look dim and their permittivity low; too much does the opposite. For simulated scenes the app starts from the scene's own average; for archive data it starts at clean ice (3.15, tan δ 0.002). Change them in the Detection panel and scan again.
+
+Near the top of the range the inversion is very sensitive: a reflectivity of −5.5 dB under ice is ε ≈ 35, and −4.9 dB is already ε ≈ 44. That is why the [uncertainty analysis](/docs/uncertainty) reports an interval, not a number. Results above 100 are shown as "≥ 100".
+
+## Classes
+
+| Basal ε | Class | Typical materials |
+| --- | --- | --- |
+| below 6 | Dry contact | ice on ice, ice on dry regolith |
+| 6–15 | Hydrated or clay-bearing | basalt, smectite clays at Martian temperatures |
+| 15–25 | Wet sediment | partly saturated sediment, salty clays |
+| 25 and above | Liquid water or brine | perchlorate brines, ponded water |
+
+## Three explanations
+
+Each detection is weighed against three hypotheses:
+
+- **Liquid water or brine.** Needs a high permittivity, enough ice above it to insulate and pressurise it, and a flat surface above.
+- **Smectite clay.** Bierson et al. (2021) and Smith et al. (2021) showed that some clays stay conductive enough at about 200 K to give permittivities of roughly 10–17. A clay signature in the CRISM context makes this more likely.
+- **Off-nadir clutter.** A surface echo from the side arriving late. More likely over slopes and at short delays.
+
+The probabilities come from Bayes' rule with deliberately sceptical priors (water 0.2, clay 0.4, clutter 0.4). The likelihoods are:
+
+| Evidence | Water | Clay | Clutter |
+| --- | --- | --- | --- |
+| Permittivity | plateau above ~22 | normal, mean 13, σ 4 | flat |
+| Surface slope (0–5°) | × (1 − 0.6 s) | × (1 − 0.3 s) | × (0.2 + 0.8 s) |
+| Depth | rises past ~300 m | flat | falls off over ~600 m |
+| CRISM clay index c | × (1.2 − 0.6 c) | × (0.5 + 1.5 c) | none |
+
+A segment's probabilities are the average over its traces.
+
+<Aside title="About the CRISM context">
+CRISM is an imaging spectrometer; it sees the surface, not the base of the ice, and its coverage of the polar caps is patchy. The clay and hydration indices along the track are therefore simulated from latitude and a smooth random field, to show how surface mineralogy would enter the argument. They are labelled as simulated wherever they appear, and you can switch them off.
+</Aside>
+
+## Logging what you find
+
+**Add to log** stores the segment with its position, depth, permittivity and probabilities in your browser. The Log panel exports CSV and JSON, and a PDF report of the current radargram with the plot as its first figure.

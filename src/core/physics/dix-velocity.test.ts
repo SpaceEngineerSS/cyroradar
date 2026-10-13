@@ -1,11 +1,3 @@
-/* CRYORADAR — Dix Equation Unit Tests
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS)
- *
- * Validates V_RMS computation for multi-layer models.
- * Test case: Vacuum(ε=1) → Ice(ε=3.15) → Water(ε=80)
- *
- * Reference: Dix, C.H. (1955), Geophysics 20(1), 68–86 */
-
 import { describe, it, expect } from 'vitest';
 import { computeDixVRMS, buildVRMSProfile, type DixLayer } from './dix-velocity';
 

@@ -277,7 +277,7 @@ export function decodeTiff(buffer: ArrayBuffer): DecodedImage {
 }
 
 /** RGRAM.IMG: little-endian float32 power, `columns` per row. */
-export function decodeRgramImg(buffer: ArrayBuffer, columns: number): DecodedImage {
+function decodeRgramImg(buffer: ArrayBuffer, columns: number): DecodedImage {
   if (buffer.byteLength % (columns * 4) !== 0) throw new PdsError('The radargram file size does not match its geometry table.');
   const height = buffer.byteLength / (columns * 4);
   const dv = new DataView(buffer);

@@ -9,9 +9,6 @@
 
 export const SPEED_OF_LIGHT = 299_792_458;
 
-/** Two-way time → one-way depth in vacuum, m per second. */
-export const HALF_C = SPEED_OF_LIGHT / 2;
-
 export const SHARAD = {
   centerFrequencyHz: 20e6,
   bandwidthHz: 10e6,
@@ -20,7 +17,7 @@ export const SHARAD = {
   orbitAltitudeM: 300e3,
 } as const;
 
-export const MARSIS = {
+const MARSIS = {
   centerFrequencyHz: 4e6,
   bandwidthHz: 1e6,
   sampleIntervalS: 0.1e-6,

@@ -1,0 +1,43 @@
+# Getting started
+
+CryoRadar is a browser tool for looking under the ice of Mars with orbital radar. It reads SHARAD radargrams from NASA's Planetary Data System, simulates MARSIS and SHARAD scenes from layered ice models, converts echo delay to depth, and looks for the unusually bright reflections at the base of the ice that have been argued to be liquid water.
+
+Nothing is installed and nothing leaves your browser except the requests to NASA's archive.
+
+<Shot src="welcome.jpg" alt="The CryoRadar start screen with the Planum Australe sketch and the list of scenes" caption="The start screen. The sketch is the scene the guided tour walks through." />
+
+## The fastest way in
+
+1. Open the app and press **Guided tour**. It loads a simulated MARSIS track over Planum Australe and explains, in eight short steps, what each line on the radargram is and why one stretch of the base is brighter than the rest.
+2. Press **Open this scene** instead if you would rather explore on your own, then open **Detection** in the left rail and press **Scan for bright reflections**.
+3. To look at real data, open **Data**, pick a region under *NASA PDS · SHARAD*, search, and load a browse image.
+
+## Two modes
+
+**Explore** keeps the panels to the tour, data, display, detection and log. **Analyse** adds the depth model, processing, uncertainty, polarimetry, waveform inversion and the link budget. The switch is in the top bar and changes nothing about your data.
+
+## The screen
+
+- **Top bar**: the loaded radargram, any running job with a cancel button, the mode switch, commands (<code>Ctrl K</code>), these docs and the theme.
+- **Left rail**: one icon per panel. On a phone it becomes a bar along the bottom and panels open as a sheet you can drag down.
+- **Plot tabs**: radargram, A-scope (one trace), track map and 3D.
+- **Status bar**: what is under the pointer, in trace number, position, delay, depth and power.
+
+## Keys worth knowing
+
+| Key | Does |
+| --- | --- |
+| `Ctrl K` | Command palette, including every scene and panel |
+| `V` `P` `M` `R` | Pan, pick a horizon, measure, draw a region |
+| `1`–`4` | Radargram, A-scope, track, 3D |
+| `0` or double-click | Fit the radargram to the view |
+| Wheel | Zoom; hold Shift for time only, Alt for distance only |
+| `?` | All shortcuts |
+
+## What it is not
+
+CryoRadar is a teaching and exploration tool built by one person. The simulated scenes are models, not observations, and they say so in the top bar. Real SHARAD data are shown as archived, with the limits of the archive (see [Data, files and exports](/docs/data)). Every calculation is documented in the [physics reference](/docs/physics), including what it leaves out, and the [limits page](/docs/limitations) lists what has and has not been checked against published results.
+
+## Who made it
+
+I'm Mehmet Gümüş. I started CryoRadar to understand the argument over the bright reflections under the south polar cap, and kept going until the tools were good enough to share. The code is MIT licensed on [GitHub](https://github.com/SpaceEngineerSS/cyroradar); issues and corrections are welcome, especially from people who work with these instruments.

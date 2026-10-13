@@ -1,0 +1,118 @@
+# Physics reference
+
+Every relation the app uses, with the source file it lives in. All media are taken as non-magnetic ($\mu_r = 1$) and all reflection at normal incidence.
+
+## Wave speed and delay
+
+`core/physics/depth-conversion.ts`
+
+$$
+v = \frac{c}{\sqrt{\varepsilon}}, \qquad \Delta t = \frac{2 d \sqrt{\varepsilon}}{c}, \qquad c = 299\,792\,458\ \text{m/s}
+$$
+
+Layered depth walks the stack from the top, as described in [Depth and layers](/docs/depth-model). RMS velocity follows Dix (1955).
+
+## Fresnel reflection
+
+`core/physics/fresnel.ts`
+
+$$
+r = \frac{\sqrt{\varepsilon_1}-\sqrt{\varepsilon_2}}{\sqrt{\varepsilon_1}+\sqrt{\varepsilon_2}}, \qquad R = r^2, \qquad T = 1 - R
+$$
+
+Inverted for the lower medium, taking the branch where it is the denser one:
+
+$$
+\sqrt{\varepsilon_2} = \sqrt{\varepsilon_1}\,\frac{1+\sqrt{R}}{1-\sqrt{R}} .
+$$
+
+<Figure caption="Power reflectivity against the permittivity of the lower medium, from vacuum (the surface) and from water ice (the base of a cap). The shaded bands are CryoRadar's classes. Computed with fresnel.ts.">
+  <FresnelCurves />
+</Figure>
+
+## Dielectric loss
+
+`core/physics/attenuation.ts`
+
+For complex permittivity $\varepsilon = \varepsilon'(1 - j\tan\delta)$ the field attenuation constant is
+
+$$
+\alpha = \frac{\omega}{c}\sqrt{\frac{\varepsilon'}{2}}\sqrt{\sqrt{1+\tan^2\delta}-1}\ \ \text{Np/m}
+$$
+
+which for small $\tan\delta$ is $\pi f \sqrt{\varepsilon'}\tan\delta / c$. Power falls as $e^{-2\alpha z}$, so the one-way power loss is $8.686\,\alpha$ dB per metre. For 20 MHz in ice with $\varepsilon' = 3.15$ and $\tan\delta = 10^{-3}$ that is 3.2 dB/km one way, 6.5 dB/km there and back.
+
+<Figure caption="Two-way loss against depth. Low frequency and cold, clean ice let MARSIS and SHARAD see kilometres down; a few tens of metres of lossy regolith cost as much as a kilometre of ice. Computed with attenuation.ts.">
+  <AttenuationCurves />
+</Figure>
+
+<Aside title="Fixed in 2.0">
+Version 1 multiplied the power attenuation coefficient by 8.686, which counts the factor of two twice and overstates every loss by 2×. Detections, the link budget and the simulated scenes all changed as a result.
+</Aside>
+
+## The link budget
+
+`core/physics/radar-equation.ts`
+
+Over a smooth surface the echo behaves like the image of the antenna at twice the range, so no scattering cross-section is needed:
+
+$$
+P_r = \frac{P_t G^2 \lambda^2 R}{(4\pi)^2 (2H)^2}.
+$$
+
+A basal echo from depth $d$ adds surface transmission both ways, the basal reflectivity, two-way loss, and the extra refracted range:
+
+$$
+P_b = \frac{P_t G^2 \lambda^2\, T^2 R_b\, 10^{-L/10}}{(4\pi)^2\,\big(2(H + d/\sqrt{\varepsilon})\big)^2}.
+$$
+
+Noise is $kT_\text{sys}B$; at these frequencies $T_\text{sys}$ is dominated by galactic background, tens of thousands of kelvin for SHARAD and around a million for MARSIS. Pulse compression and along-track processing add the gains listed below. The **Link budget** panel solves for the deepest basal echo that clears a chosen SNR.
+
+| | SHARAD | MARSIS |
+| --- | --- | --- |
+| Centre frequency, bandwidth | 20 MHz, 10 MHz | 4 MHz, 1 MHz |
+| Transmit power | 10 W | 5 W |
+| Antenna gain | 2.15 dBi | 2.15 dBi |
+| System temperature | 3 × 10⁴ K | 10⁶ K |
+| Pulse compression gain | 29.3 dB | 24 dB |
+| Along-track processing gain | 27 dB | 20 dB |
+| Orbit altitude used | 300 km | 800 km |
+
+These are nominal values for order-of-magnitude work; they give surface SNRs of roughly 50 dB for SHARAD and 35–40 dB for MARSIS, in line with published figures.
+
+## Ice at Mars temperatures
+
+`core/physics/dielectric-temperature.ts`
+
+Water ice is modelled as a Debye relaxation plus impurity conduction:
+
+$$
+\varepsilon_s(T) = \frac{20\,715}{T - 6.6}, \qquad \tau(T) = 5.3\times10^{-16}\, e^{0.57\,\text{eV}/kT}\ \text{s},
+$$
+
+$$
+\sigma(T) = 10\ \mu\text{S/m}\ \times\ e^{-\frac{0.22\,\text{eV}}{k}\left(\frac1T - \frac1{251\,\text{K}}\right)}, \qquad
+\varepsilon'' = \frac{(\varepsilon_s-\varepsilon_\infty)\,\omega\tau}{1+\omega^2\tau^2} + \frac{\sigma}{\omega\varepsilon_0}.
+$$
+
+At HF the relaxation is long past, so $\varepsilon'$ stays near 3.15 and the loss comes almost entirely from conduction, which falls quickly as the ice gets colder. Dusty ice mixes in basaltic inclusions (ε 7.5) with the Maxwell Garnett formula.
+
+## Ionosphere
+
+`core/pipeline/synthetic-generator.ts`, see [Processing](/docs/processing#the-ionosphere).
+
+## Roughness
+
+`core/pipeline/synthetic-generator.ts`
+
+The Kirchhoff approximation splits an echo from a surface with RMS height $\sigma_h$ into a coherent fraction
+
+$$
+\rho_\text{coh} = \exp\!\left[-\left(\frac{4\pi\sigma_h\sqrt{\varepsilon_\text{above}}}{\lambda}\right)^2\right]
+$$
+
+and a diffuse remainder with Rayleigh-distributed amplitude. This is what gives simulated reflectors their trace-to-trace flicker.
+
+## Materials
+
+`core/physics/dielectric.ts` holds 17 materials with permittivity, loss tangent, their published ranges and a reference for each. The Depth model panel lists them.

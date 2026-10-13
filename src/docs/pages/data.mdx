@@ -1,0 +1,60 @@
+# Data, files and exports
+
+## Simulated scenes
+
+Five scenes are built from published layer models. Each trace is a complex sum of echoes, so overlapping returns interfere as they do in real data. The simulator includes surface and interface Fresnel reflection, two-way transmission, dielectric loss, roughness (which splits each echo into a coherent part and a Rayleigh-distributed diffuse part), a range pulse matched to the bandwidth, off-nadir clutter where the terrain calls for it, residual ionospheric smear, and receiver noise. A given scene always comes out identical, because every random draw is seeded.
+
+<Figure wide caption="The layer stacks behind the five scenes, to scale within each column. The blue marks on the Planum Australe basement are the brine patches.">
+  <SceneModels />
+</Figure>
+
+| Scene | Instrument | What to look for | Based on |
+| --- | --- | --- | --- |
+| Planum Australe | MARSIS, 4 MHz | two bright patches at the base of 1.5 km of ice | Orosei et al. 2018; Lauro et al. 2021 |
+| Planum Boreum | SHARAD, 20 MHz | weak internal layering, sandy basal unit | Phillips et al. 2008; Putzig et al. 2009 |
+| Deuteronilus Mensae | SHARAD | glacier under debris, and clutter from mesa walls | Plaut et al. 2009; Holt et al. 2008 |
+| Arcadia Planitia | SHARAD | shallow excess ice that thins out | Bramson et al. 2015 |
+| Utopia Planitia | SHARAD | buried ice-rich deposit, ε ≈ 2.8 | Stuurman et al. 2016 |
+
+Values are stored as power in dB relative to a perfect reflector at the spacecraft's range, so a water-ice surface sits near −11 dB.
+
+## NASA PDS: SHARAD
+
+Search uses NASA's ODE REST service for the US SHARAD radargram archive (MRO-M-SHARAD-5-RADARGRAM-V2.0). Two products can be loaded per track:
+
+| Product | Size | Contents |
+| --- | --- | --- |
+| Browse image | about 5 MB | 8-bit TIFF, logarithmic over a 35 dB greyscale range |
+| Calibrated power | about 20 MB | RGRAM.IMG, 32-bit float, linear power in consistent arbitrary units |
+
+Both come with the geometry table (GEOM.TAB): latitude, longitude, planetary radius and spacecraft radius for every column. Columns are 128 per degree (about 460 m) and rows 0.0375 µs apart. Elevations shown in CryoRadar are the planetary radius minus the IAU ellipsoid radius at that latitude, which can differ from MOLA heights by up to about 2 km.
+
+The browse image is fine for looking but clips anything more than 35 dB below the brightest pixel, so detection numbers from it are lower bounds. Use calibrated power for numbers.
+
+Product files are fetched through a same-origin proxy (`/pds-data`), because the archive server does not send cross-origin headers. Nothing else about the request changes.
+
+## Your own files
+
+Drop a file on the Data panel or use **Open a file**:
+
+- **TIFF** (8- or 16-bit, uncompressed) is read like a SHARAD browse product.
+- **CSV or text**: one row per delay sample, one column per trace. If any value is zero or negative the numbers are taken as dB, otherwise as linear power. A header row is skipped.
+
+Without a geometry table, SHARAD sampling is assumed and the track has no position on the map.
+
+## Sessions and links
+
+**Save session** writes a small `.cryoradar.json` file with your layers, picks, detection settings, window and display choices. Opening it reloads the radargram from its source (a scene, or the same PDS product) and puts everything back.
+
+For simulated scenes, the address bar always holds a link to what you are looking at: scene, view, colour table, contrast, TEC, pinned trace and static correction.
+
+## Exports
+
+| Export | Where | Contents |
+| --- | --- | --- |
+| PNG | download button above the plot | the current view with a caption, colour scale and timestamp |
+| CSV, JSON | Log panel | every logged detection |
+| PDF | Log panel | data, method, detections, uncertainty, inversion and references for the current radargram, with the plot as Figure 1 |
+| JSON | Inversion panel | the recovered permittivity grid and misfit history |
+
+The CSV columns are `saved_utc, dataset, scene, trace, lat_deg, lon_deg_e, depth_m, basal_eps, basal_reflectivity_db, class, confidence, p_water, p_clay, p_clutter, notes`.

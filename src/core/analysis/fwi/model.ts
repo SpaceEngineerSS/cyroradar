@@ -214,7 +214,7 @@ export function fineFields(grid: FWIGrid, logEps: Float32Array): FineFields {
 }
 
 /** Chain fine-grid gradients (w.r.t. s² and ρ) to coarse ln ε. */
-export function chainToCoarse(grid: FWIGrid, fields: FineFields, gC2: Float32Array, gRho: Float32Array): Float32Array {
+function chainToCoarse(grid: FWIGrid, fields: FineFields, gC2: Float32Array, gRho: Float32Array): Float32Array {
   const { nx, nz, nzc, r, padTop } = grid;
   const g = new Float32Array(nx * nzc);
   for (let z = padTop; z < padTop + nzc * r && z < nz; z++) {
@@ -240,7 +240,7 @@ export interface MisfitResult {
 }
 
 /** `recorded` has ntc rows × nx; row c + t0 corresponds to observed row c. */
-export function envelopeMisfit(problem: FWIProblem, recorded: Float32Array): MisfitResult {
+function envelopeMisfit(problem: FWIProblem, recorded: Float32Array): MisfitResult {
   const { grid, observed, observedEnergy, alpha } = problem;
   const { nx, nzc, t0, ntc } = grid;
   // Smooths |u| near zero crossings so the misfit stays differentiable:
@@ -450,7 +450,7 @@ export async function calibrate(problem: FWIProblem, backend: FWIBackend): Promi
  * coefficient (dividing by the pulse area) and integrate ln ε downward,
  * assuming the stack gets denser with depth.
  */
-export function recursiveStart(problem: FWIProblem): Float32Array {
+function recursiveStart(problem: FWIProblem): Float32Array {
   const { nx, nzc, epsRef } = problem.grid;
   const out = new Float32Array(nx * nzc);
   const lnRef = Math.log(epsRef);
@@ -482,7 +482,7 @@ export async function computeGradient(problem: FWIProblem, backend: FWIBackend, 
  * Smoothed total variation of ln ε and its gradient. Lateral differences
  * count 30 %; vertical decreases with depth count up to 3× (smoothly).
  */
-export function totalVariation(logEps: Float32Array, nx: number, nzc: number, grad?: Float32Array): number {
+function totalVariation(logEps: Float32Array, nx: number, nzc: number, grad?: Float32Array): number {
   const e2 = 1e-4;
   const kink = 0.02;
   let tv = 0;

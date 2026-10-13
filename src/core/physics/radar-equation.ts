@@ -16,7 +16,7 @@
  * The instrument numbers below are nominal and meant for order-of-magnitude
  * work; the docs list their sources.
  *
- *   Picardi et al. (2004), Planet. Space Sci. 52, 149–156
+ *   Picardi et al. (2005), Science 310, 1925–1928
  *   Seu et al. (2007), JGR 112, E05S05 */
 
 import { SPEED_OF_LIGHT } from './constants';
@@ -78,7 +78,7 @@ function specularPowerW(spec: InstrumentSpec, rangeM: number, reflectivity: numb
   return (spec.transmitPowerW * g * g * lambda * lambda * reflectivity) / ((4 * Math.PI) ** 2 * (2 * rangeM) ** 2);
 }
 
-export function noisePowerW(spec: InstrumentSpec): number {
+function noisePowerW(spec: InstrumentSpec): number {
   return K_BOLTZMANN * spec.systemTempK * spec.bandwidthHz;
 }
 

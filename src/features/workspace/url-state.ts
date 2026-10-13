@@ -12,7 +12,7 @@ const VIEWS: MainView[] = ['radargram', 'ascope', 'map', 'scene'];
 const SCENES = new Set(listSyntheticScenes().map(s => s.id));
 const CMAPS = new Set(getAllColormaps().map(c => c.id));
 
-export function encodeState(): string {
+function encodeState(): string {
   const s = useApp.getState();
   if (!s.datasetKey?.startsWith('synthetic:')) return '';
   const p = new URLSearchParams();

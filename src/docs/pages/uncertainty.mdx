@@ -1,0 +1,30 @@
+# Uncertainty
+
+A basal permittivity from a radargram rests on numbers nobody knows exactly: the permittivity and loss of the ice above, the exact delay of the echo, and the power ratio itself. The Uncertainty panel repeats the detector's calculation thousands of times with those inputs drawn at random, and reports how much the answers spread.
+
+<Shot src="uncertainty.jpg" alt="Uncertainty panel with 90 percent intervals of basal permittivity for two segments" caption="Monte Carlo intervals for the two Planum Australe segments. Ticks mark the class boundaries at ε = 6, 15 and 25." />
+
+## What is varied
+
+For each segment, at its median trace:
+
+| Input | Distribution |
+| --- | --- |
+| Overburden permittivity | normal around your setting, σ 0.25 by default |
+| Overburden loss tangent | log-normal, a factor of e<sup>±0.5</sup> |
+| Echo delay | normal, ±½ sample |
+| Basal minus surface power | normal, σ 1.5 dB by default |
+
+Each draw recomputes depth, two-way loss, the surface correction and the Fresnel inversion, exactly as the detector does. The seed is fixed, so running it again gives the same numbers.
+
+## What comes out
+
+- **Depth**: mean, standard deviation and the 5–95 % interval. Drawn as an error bar on the radargram when *Depth uncertainty bars* is on.
+- **Basal permittivity**: the 5–95 % interval on a log scale, against the class boundaries.
+- **P(ε ≥ 25)**: the share of draws that land in the liquid-water class.
+
+A segment whose interval straddles 25 is not a confident water detection however bright it looks; that is usually the honest answer.
+
+## Limits
+
+The analysis uses a single overburden layer, as the detector's defaults do. If you have built a multi-layer depth model, detection uses it for depth but the Monte Carlo does not. Roughness, off-nadir energy and processing artefacts are not in the error budget at all.

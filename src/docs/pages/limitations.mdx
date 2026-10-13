@@ -1,0 +1,30 @@
+# Limits and validation
+
+This page is the short list of what CryoRadar does not do, and what has actually been checked.
+
+## Checked
+
+- **Physics against hand calculations.** Fresnel reflectivity for vacuum over ice, attenuation of 20 MHz ice (6.5 dB per km two-way), the small-loss limit of the attenuation formula, time–depth round trips through a layered model, and the ellipsoid radius at the equator and poles.
+- **Detection against a known answer.** In the Planum Australe scene the detector finds two segments, both inside the brine patches the simulator placed, both classed as liquid water, at 1.3–1.6 km depth, and nothing elsewhere along the base.
+- **The inversion gradient** agrees in sign and to within a factor of two with finite differences on cells the data constrain, and an inversion of a synthetic block lowers the misfit by more than 70 % while recovering the block's top contrast.
+- **The PDS reader** decodes a TIFF fixture and a real SHARAD GEOM.TAB row, and derives the file paths ODE does not provide directly.
+- **The real archive.** Searching ODE, loading both browse and calibrated products, and scanning them have been tried by hand on SHARAD tracks over Planum Australe.
+
+## Not checked
+
+- No result in CryoRadar has been compared quantitatively with a published detection on the same real track.
+- The link-budget instrument parameters are nominal; they reproduce published SNRs roughly, not exactly.
+- The hypothesis likelihoods and priors are reasoned choices, not fitted to data.
+
+## Known limitations
+
+- **Real data are uncalibrated.** SHARAD archive power is in consistent but arbitrary units; the browse image is clipped at 35 dB. Ratios between echoes in the same trace are meaningful; absolute values are not.
+- **One overburden.** Detection can use a layered depth model for depth, but the surface correction and loss use a single overburden permittivity and loss tangent.
+- **No clutter simulation for real tracks.** The slope warning is a proxy. Proper clutter discrimination needs a clutter radargram simulated from topography, which the archive provides separately and CryoRadar does not load yet.
+- **Migration is incoherent**, because archive radargrams have no phase.
+- **The inversion is 2-D, scalar, lossless inside its window**, and shaped by its priors. See [Waveform inversion](/docs/inversion#what-it-does-not-do).
+- **CRISM context and polarimetry are simulated.** They are labelled as such and can be ignored.
+- **MARSIS archive products cannot be loaded.** The MARSIS scene is simulated only.
+- **Positions without geometry.** Files opened from disk have no map position.
+
+If you find something wrong, an issue on [GitHub](https://github.com/SpaceEngineerSS/cyroradar/issues) with the dataset and settings is the fastest way to get it fixed.

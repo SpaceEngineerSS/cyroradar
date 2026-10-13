@@ -7,6 +7,7 @@ import { fitViewport } from '../../store/viewport';
 import { PANELS } from '../panels/registry';
 import type { IconName } from '../../ui/icons';
 import { capturePlot } from '../../core/export/capture';
+import { shareUrl } from '../workspace/url-state';
 
 export interface Command {
   id: string;
@@ -44,6 +45,22 @@ export function buildCommands(navigate: (to: string) => void): Command[] {
     { id: 'scan', group: 'Analysis', title: 'Scan for bright reflections', icon: 'detect', run: () => void s.runScan() },
     { id: 'migrate', group: 'Analysis', title: 'Run migration', icon: 'migrate', run: () => s.runMigration() },
     { id: 'statics', group: 'Analysis', title: 'Toggle static correction', icon: 'statics', run: () => s.set('statics', !useApp.getState().statics) },
+    {
+      id: 'link',
+      group: 'Export',
+      title: 'Copy a link to this view',
+      icon: 'link',
+      run: () => {
+        if (!useApp.getState().datasetKey?.startsWith('synthetic:')) {
+          s.notify('Links work for simulated scenes. For archive tracks, save a session instead.', 'info');
+          return;
+        }
+        navigator.clipboard.writeText(shareUrl()).then(
+          () => s.notify('Link copied.', 'ok'),
+          () => s.notify('The browser did not allow copying. The address bar holds the same link.', 'info'),
+        );
+      },
+    },
     { id: 'capture', group: 'Export', title: 'Save radargram as PNG', icon: 'download', run: () => void capturePlot().catch(e => s.notify(String(e.message ?? e), 'error')) },
     { id: 'theme', group: 'Settings', title: 'Switch light / dark theme', icon: 'sun', run: () => s.set('theme', useApp.getState().theme === 'dark' ? 'light' : 'dark') },
     { id: 'mode', group: 'Settings', title: 'Switch Explore / Analyse mode', icon: 'tour', run: () => s.set('mode', useApp.getState().mode === 'explorer' ? 'analyst' : 'explorer') },

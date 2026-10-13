@@ -161,7 +161,7 @@ export function Segmented<T extends string>({
 
 /* Form controls ------------------------------------------------------------ */
 
-export function Field({ label, hint, children, htmlFor }: { label: string; hint?: ReactNode; children: ReactNode; htmlFor?: string }) {
+function Field({ label, hint, children, htmlFor }: { label: string; hint?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={htmlFor} className="text-xs text-dim">

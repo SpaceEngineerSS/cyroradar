@@ -21,7 +21,7 @@
  *
  *   Seu et al. (2007), JGR 112, E05S05
  *   Orosei et al. (2018), Science 361, 490–493
- *   Campbell et al. (2011), IEEE GRSL 8, 939–942 (ionospheric correction) */
+ *   Safaeinili et al. (2003), Planet. Space Sci. 51, 505–515 (ionospheric dispersion) */
 
 import { SPEED_OF_LIGHT, INSTRUMENTS, type InstrumentId } from '../physics/constants';
 import { fresnelReflection } from '../physics/fresnel';
@@ -263,6 +263,16 @@ export function listSyntheticScenes(): SceneSummary[] {
     description: s.description,
     centerLat: s.centerLat,
     centerLon: s.centerLon,
+  }));
+}
+
+/** Layer stacks of every scene, for documentation figures. */
+export function sceneModels() {
+  return SCENES.map(s => ({
+    id: s.id,
+    title: s.title,
+    instrument: s.instrument,
+    layers: s.layers.map(l => ({ label: l.label, permittivity: l.permittivity, lossTangent: l.lossTangent, thicknessM: l.thicknessM, patches: l.patches?.map(p => ({ label: p.label, permittivity: p.permittivity })) })),
   }));
 }
 

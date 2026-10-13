@@ -1,7 +1,7 @@
 {
   "name": "cyroradar",
-  "version": "1.0.0",
-  "description": "High-fidelity browser-based Mars subsurface ice detection radar simulator (MARSIS/SHARAD)",
+  "version": "2.0.0",
+  "description": "Mars subsurface radar in the browser: SHARAD archive data, simulated MARSIS and SHARAD scenes, depth conversion and basal reflection analysis.",
   "type": "module",
   "license": "MIT",
   "author": "Mehmet Gümüş (https://github.com/SpaceEngineerSS)",
@@ -28,15 +28,18 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -b",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "jspdf": "^4.2.1",
-    "katex": "^0.19.0",
+    "katex": "^0.16.47",
     "motion": "^14.1.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -70,5 +73,8 @@
     "typescript-eslint": "^8.57.0",
     "vite": "^8.0.1",
     "vitest": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=20.19"
   }
 }

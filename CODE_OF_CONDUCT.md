@@ -32,4 +32,8 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at [github.com/SpaceEngineerSS](https://github.com/SpaceEngineerSS). All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately to the maintainer through the email address on the [maintainer's GitHub profile](https://github.com/SpaceEngineerSS). Reports are read by the maintainer only, reviewed promptly and fairly, and kept confidential.
+
+## Attribution
+
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org), version 2.1.

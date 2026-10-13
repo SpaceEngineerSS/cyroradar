@@ -1,14 +1,26 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
+title: "CryoRadar"
+version: 2.0.0
+date-released: 2026-10-13
+license: MIT
 authors:
   - family-names: "Gümüş"
     given-names: "Mehmet"
-title: "CRYORADAR"
-version: 1.0.0
-date-released: 2026-04-28
 url: "https://cyroradar.vercel.app"
 repository-code: "https://github.com/SpaceEngineerSS/cyroradar"
-abstract: "A high-fidelity, browser-based planetary radar simulation and tomography station for Martian subsurface exploration."
+abstract: >-
+  A browser tool for Mars subsurface radar: SHARAD radargrams from the NASA
+  Planetary Data System, simulated MARSIS and SHARAD scenes, time-to-depth
+  conversion, bright basal reflection detection with competing hypotheses,
+  Monte Carlo uncertainty, migration and an experimental envelope waveform
+  inversion.
+keywords:
+  - Mars
+  - radar sounding
+  - SHARAD
+  - MARSIS
+  - subsurface ice
 references:
   - type: article
     authors:
@@ -18,10 +30,24 @@ references:
     year: 2018
     journal: "Science"
     volume: 361
+    start: 490
+    end: 493
+    doi: "10.1126/science.aar7268"
   - type: article
     authors:
       - family-names: "Bierson"
         given-names: "C. J."
-    title: "A Strong Paleoclimatic Signal in the Martian South Polar Cap"
+    title: "Strong MARSIS radar reflections from the base of Martian south polar cap may be due to conductive ice or minerals"
     year: 2021
     journal: "Geophysical Research Letters"
+    volume: 48
+    doi: "10.1029/2021GL093880"
+  - type: article
+    authors:
+      - family-names: "Seu"
+        given-names: "R."
+    title: "SHARAD sounding radar on the Mars Reconnaissance Orbiter"
+    year: 2007
+    journal: "Journal of Geophysical Research: Planets"
+    volume: 112
+    doi: "10.1029/2006JE002745"

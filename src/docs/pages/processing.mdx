@@ -1,0 +1,43 @@
+# Processing
+
+The Processing panel holds three operations that change how the radargram looks without changing the data underneath.
+
+## Static correction
+
+Each trace is shifted up or down so its surface echo sits on one row, the median surface row. Reflectors that follow the topography become flat, which makes it much easier to see whether a reflector is continuous or how it dips relative to the surface.
+
+The shift is applied on screen, to the image and to every annotation, so picks and detections stay attached to the right echoes. Samples shifted in from outside the window are drawn as the noise floor.
+
+## The ionosphere
+
+Mars' ionosphere delays low frequencies more than high ones. Over a chirp's bandwidth that spreads each echo in time, and the spread grows with the total electron content (TEC) and with $1/f^2$. The group delay one way is
+
+$$
+\tau_g = \frac{40.3\,\text{TEC}}{c\,f^2},
+$$
+
+so the two-way spread between the band edges is
+
+$$
+\Delta\tau = \frac{2 \cdot 40.3\,\text{TEC}}{c}\left(\frac{1}{f_\text{lo}^2} - \frac{1}{f_\text{hi}^2}\right).
+$$
+
+Processing removes most of it; the simulator keeps 2 % as residual smear. At 1 TECU that is about 0.15 µs for SHARAD (15–25 MHz) and about 1.7 µs for MARSIS (3.5–4.5 MHz), which is why the TEC slider makes the MARSIS scene blur visibly and barely touches the SHARAD ones. Archive radargrams have already been corrected, so the slider only affects simulated scenes.
+
+## Migration
+
+Every point scatterer appears on a radargram as a hyperbola, because neighbouring traces see it at slightly longer range. Migration sums energy along each hyperbola back to its apex.
+
+For an output point at delay $\tau$ below the surface of trace $x$, the scatterer depth is $z = V_\text{rms}(\tau)\,\tau/2$ and trace $x_s$ sees it at
+
+$$
+\tau_s = \frac{2\sqrt{z^2 + (x - x_s)^2}}{V_\text{rms}(\tau)}.
+$$
+
+CryoRadar sums amplitudes along that curve within a maximum angle (30° by default) and aperture, weights each by the obliquity $\cos\theta = z/r$, and normalises by the total weight. Each trace's own surface echo is its datum, so topography is handled.
+
+<Shot src="migration.jpg" alt="Planum Boreum raw and migrated radargrams side by side" caption="Raw and migrated, side by side (the split button above the plot). Pan and zoom move both." />
+
+<Aside title="Why this migration is modest">
+Archive radargrams are already focused along track by synthetic-aperture processing, and they store detected power without phase. Migrating amplitudes is therefore incoherent: it tidies diffraction tails and dipping edges, but cannot recover the resolution a coherent migration of complex data would.
+</Aside>

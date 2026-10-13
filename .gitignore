@@ -36,3 +36,7 @@ dist-ssr
 # Test results and artifacts
 test-results.json
 coverage/
+
+# Local tooling
+.vercel
+.vite

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 /** Subscribes to a media query. */
-export function useMedia(query: string): boolean {
+function useMedia(query: string): boolean {
   return useSyncExternalStore(
     cb => {
       const m = matchMedia(query);

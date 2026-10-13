@@ -38,9 +38,9 @@ export const DEFAULT_DETECTION: DetectionParams = {
 };
 
 /** Above this the Fresnel inversion is meaningless; report it as "≥ 100". */
-export const MAX_PERMITTIVITY = 100;
+const MAX_PERMITTIVITY = 100;
 
-export const CLUTTER_SLOPE_DEG = 2;
+const CLUTTER_SLOPE_DEG = 2;
 const MIN_SNR_DB = 10;
 const PEAK_HALF_WINDOW = 3;
 

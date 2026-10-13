@@ -1,0 +1,45 @@
+# Depth and layers
+
+The radar measures time. Depth needs a speed, and the speed depends on what the wave is travelling through. The depth model is where you say what that is.
+
+## From delay to depth
+
+In a medium with relative permittivity $\varepsilon$ the wave travels at $v = c/\sqrt{\varepsilon}$. Down and back through a layer of thickness $d$ takes
+
+$$
+\Delta t = \frac{2\,d\,\sqrt{\varepsilon}}{c}.
+$$
+
+With several layers the delays add up from the surface down. CryoRadar walks the stack until the delay is used up; below the last layer the last speed carries on, and with no layers at all a single bulk permittivity is used.
+
+<Figure caption="Three echoes in time (left) and where they come from (right), for 20 m of cover (ε 4.2) over 60 m of ice (ε 3.0). The same delay means less depth in a denser layer.">
+  <TimeToDepth />
+</Figure>
+
+A permittivity of 3.15 for water ice is a reasonable start. Dusty ice is 3.3–3.5, dry regolith 3–5, basalt 7–9.
+
+## Building a model
+
+Open **Depth model**, choose a material and press **Add**. Each layer has a permittivity, a loss tangent and a thickness; picking a material fills in published values, and you can change them.
+
+To tie the model to the radargram:
+
+1. Make a layer active and press **Pick base** (or press `P`).
+2. Click along the reflector at the bottom of that layer. Each click is a pick.
+3. Press **Fit to picks**. The thickness is set so the base of the layer lands on the average delay of your picks, given the layers above it.
+
+For simulated scenes, **Copy the scene's own model** loads the layers the simulator used.
+
+## RMS velocity
+
+Migration needs the velocity that best describes a hyperbola through several layers, which is the root-mean-square velocity of Dix (1955):
+
+$$
+V_\text{rms}(t)^2 = \frac{\sum_i v_i^2\,\Delta t_i}{\sum_i \Delta t_i}.
+$$
+
+The Depth model panel shows it for the whole stack, along with the two-way dielectric loss.
+
+## Ice temperature
+
+The permittivity of ice barely changes with temperature at radar frequencies, but its loss does. The **Ice temperature** section sets every water-ice layer from a temperature using a Debye relaxation plus an impurity conduction term (the equations are on the [physics page](/docs/physics#ice-at-mars-temperatures)). At 170 K clean ice loses very little; near 250 K the loss is several times higher.

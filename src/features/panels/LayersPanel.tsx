@@ -3,7 +3,7 @@ import { useApp, velocityLayers } from '../../store/app';
 import { getAllMaterials, getMaterial } from '../../core/physics/dielectric';
 import { computeDixVRMS } from '../../core/physics/dix-velocity';
 import { twoWayLossDb } from '../../core/physics/attenuation';
-import { waterIcePermittivity } from '../../core/physics/dielectric-temperature';
+import { waterIcePermittivity, dustyIcePermittivity } from '../../core/physics/dielectric-temperature';
 import { SPEED_OF_LIGHT } from '../../core/physics/constants';
 import { Button, EmptyState, IconButton, NumberField, Readout, Section, Select } from '../../ui/controls';
 import { cx } from '../../ui/cx';
@@ -158,16 +158,20 @@ export default function LayersPanel() {
       </Section>
 
       <Section title="Ice temperature" defaultOpen={false}>
-        <p className="text-xs text-dim">Sets ε and tan δ of every water-ice layer from a temperature, using Debye relaxation plus impurity conduction (see the docs). Colder ice is less lossy.</p>
+        <p className="text-xs text-dim">Sets ε and tan δ of every water-ice and dusty-ice layer from a temperature, using Debye relaxation plus impurity conduction, with 10 % basaltic dust mixed in for dusty ice (see the docs). Colder ice is less lossy.</p>
         <NumberField label="Temperature" value={temperature} min={120} max={270} step={5} unit="K" onChange={setTemperature} />
         <Button
           size="sm"
           onClick={() => {
-            const p = waterIcePermittivity(temperature, ds.metadata.frequencyHz);
-            layers.forEach((l, i) => l.materialId === 'water-ice' && update(i, { permittivity: Number(p.real.toFixed(3)), lossTangent: Number(p.lossTangent.toPrecision(2)) }));
+            const clean = waterIcePermittivity(temperature, ds.metadata.frequencyHz);
+            const dusty = dustyIcePermittivity(temperature, 0.1, ds.metadata.frequencyHz);
+            layers.forEach((l, i) => {
+              const p = l.materialId === 'water-ice' ? clean : l.materialId === 'dusty-ice' ? dusty : null;
+              if (p) update(i, { permittivity: Number(p.real.toFixed(3)), lossTangent: Number(p.lossTangent.toPrecision(2)) });
+            });
           }}
         >
-          Apply to water-ice layers
+          Apply to ice layers
         </Button>
       </Section>
     </>

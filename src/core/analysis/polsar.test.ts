@@ -1,6 +1,3 @@
-/* CRYORADAR — PolSAR Decomposition Test Suite (v7.0)
- * Developer: Mehmet Gümüş (github.com/SpaceEngineerSS) */
-
 import { describe, it, expect } from 'vitest';
 import {
   computeStokesVector,

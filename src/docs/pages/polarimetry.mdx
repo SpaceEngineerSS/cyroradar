@@ -1,0 +1,33 @@
+# Polarimetry (simulated)
+
+SHARAD and MARSIS each transmit and receive a single linear polarisation. Nothing in their archives can be decomposed into scattering mechanisms. This panel answers a what-if question instead: if a fully polarimetric sounder flew over the same scene, what would the standard decompositions show?
+
+## What is simulated
+
+For each pixel the scattering matrix is built from the radargram itself:
+
+- samples that stand out sharply from their vertical neighbours (interfaces) are given mostly **surface** scattering;
+- diffuse energy between interfaces is given **volume** scattering, as from dust and inclusions;
+- a small, random **dihedral** part stands in for buried blocks and walls.
+
+Phases are random but seeded, so a dataset always gives the same picture. Large radargrams are decimated to about 400,000 pixels.
+
+## The decompositions
+
+The Pauli decomposition splits power into surface, dihedral and volume parts:
+
+$$
+|a|^2 = \tfrac12|S_{HH}+S_{VV}|^2,\quad |b|^2 = \tfrac12|S_{HH}-S_{VV}|^2,\quad |c|^2 = 2|S_{HV}|^2 .
+$$
+
+Cloude–Pottier then gives entropy, mean alpha and anisotropy from the eigenvalues of the coherency matrix, here taken as diagonal so the eigenvalues are the Pauli powers:
+
+$$
+H = -\sum_i p_i \log_3 p_i,\qquad \bar\alpha = \sum_i p_i\,\alpha_i,\qquad A = \frac{\lambda_2-\lambda_3}{\lambda_2+\lambda_3}.
+$$
+
+Entropy near 0 means one dominant mechanism (a clean interface), near 1 a random mix (dusty volume). Alpha near 0° is surface scattering, near 90° dihedral.
+
+## How to read it
+
+Treat the overlays as illustrations of what the decompositions measure, not as measurements. They are useful for teaching the vocabulary and for thinking about what a future polarimetric sounder could add, which is exactly how they are presented in the app.

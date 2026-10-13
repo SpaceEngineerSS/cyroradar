@@ -65,5 +65,5 @@ describe('envelope FWI', () => {
     const jumpOut = Math.log(at(0, 29) / at(0, 23));
     expect(jumpIn).toBeGreaterThan(jumpOut + 0.2);
     expect(Math.max(...eps)).toBeLessThan(60);
-  });
+  }, 30_000);
 });

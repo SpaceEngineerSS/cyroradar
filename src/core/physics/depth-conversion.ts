@@ -14,11 +14,6 @@ export interface VelocityLayer {
   thicknessM: number;
 }
 
-export function waveVelocity(permittivity: number): number {
-  if (!(permittivity >= 1)) throw new RangeError('Permittivity must be ≥ 1');
-  return SPEED_OF_LIGHT / Math.sqrt(permittivity);
-}
-
 /** Depth reached after a round-trip delay `t` below the surface, metres. */
 export function timeToDepth(t: number, layers: readonly VelocityLayer[], bulkPermittivity = 3.15): number {
   if (!(t > 0)) return 0;
@@ -59,14 +54,4 @@ export function sampleToDepth(
   bulkPermittivity = 3.15,
 ): number {
   return timeToDepth((sampleIndex - surfaceSample) * sampleIntervalS, layers, bulkPermittivity);
-}
-
-export function depthToSample(
-  depthM: number,
-  surfaceSample: number,
-  sampleIntervalS: number,
-  layers: readonly VelocityLayer[],
-  bulkPermittivity = 3.15,
-): number {
-  return surfaceSample + depthToTime(depthM, layers, bulkPermittivity) / sampleIntervalS;
 }

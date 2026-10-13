@@ -1,0 +1,49 @@
+# Reading a radargram
+
+A radargram is a stack of radar echoes. Each column is one pulse sent straight down as the spacecraft moves along its track; each row is a moment in time after the pulse left. Brightness is how much power came back.
+
+<Figure caption="What the radar sees. The nadir echo goes straight down and back; part of the energy carries on into the ice at c/√ε and reflects from each change in permittivity. Echoes from slopes off to the side can arrive at the same delay as a buried interface.">
+  <SoundingGeometry />
+</Figure>
+
+## The axes
+
+The left axis is round-trip delay in microseconds, measured from the top of the window. The bottom axis is distance along the track in kilometres. On the right, the dotted contours give depth below the surface; they follow the topography because depth is always counted from the surface echo of the same column.
+
+## The surface echo
+
+The first strong line, traced in orange, is the echo from the ground. Everything else is measured from it. Its strength depends on the permittivity of the top layer: about −11 dB for water ice, about −7 dB for rock-rich regolith (the curves are on the [physics page](/docs/physics#fresnel-reflection)).
+
+For archive data the surface is picked automatically as the brightest row in each column, smoothed with a running median over 15 columns. Where the surface is weak or broken by steep terrain the pick can jump; the orange line shows exactly what the app is using.
+
+## Subsurface echoes
+
+Fainter lines below the surface come from changes in permittivity: dust-rich ice under clean ice, ice over rock, rock over brine. A reflector is bright when the permittivity jump is large and the material above it is not too lossy.
+
+<Shot src="layers.jpg" alt="Planum Boreum radargram with the simulator's interfaces drawn as dashed lines" caption="Planum Boreum, simulated. The dashed lines are where the simulator placed each interface (Display → Scene model interfaces); the weak internal reflectors come from small contrasts between ice packets." />
+
+## Clutter
+
+Not every late echo is from below. A hill or a mesa wall a few kilometres to the side of the track is further from the spacecraft than the ground directly beneath it, so its echo arrives later and lands among the subsurface echoes. SHARAD's archive includes simulated clutter radargrams for exactly this reason. In CryoRadar, slopes steeper than 2° raise a warning on detections, the 3D ribbon is coloured by slope, and the Deuteronilus Mensae scene includes clutter on purpose.
+
+<Shot src="deuteronilus.jpg" alt="Deuteronilus Mensae radargram with sloping surface and short curved off-nadir echoes" caption="Deuteronilus Mensae, simulated. The short curved echoes under the left part of the track are off-nadir clutter, not buried layers." />
+
+## Colour and contrast
+
+Radargrams are usually read in greyscale, which is the default. The other tables help with weak reflectors: *Ember* and *Ice* spread the mid-tones, *Viridis* and *Magma* are perceptually uniform.
+
+<Figure caption="The colour tables. All of them run from weak (left) to strong (right).">
+  <ColourTables />
+</Figure>
+
+The black point starts just above the estimated noise floor and the white point at the 99.85th percentile; **Auto** in the Display panel restores that.
+
+## A-scope, track and 3D
+
+The **A-scope** plots power against delay for one trace, the way an oscilloscope would. Click a column on the radargram to pin it; click again to unpin. Detections on that trace are marked.
+
+<Shot src="ascope.jpg" alt="A-scope of one trace with the surface echo, a basal echo and the noise floor" caption="A-scope of a pinned trace. The dashed line is the noise floor estimated from the deepest rows." />
+
+The **track** view draws the ground track on a Mars graticule (polar tracks use a projection centred on the pole) and the surface profile underneath. The **3D** view hangs the radargram below that profile using your depth model.
+
+<Shot src="scene-3d.jpg" alt="3D view: radargram curtain hanging below a surface ribbon coloured by slope" caption="The 3D view. The ribbon is only the measured profile along the track; nothing is invented across it." />

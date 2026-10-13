@@ -432,7 +432,7 @@ export function segmentLetter(i: number): string {
   return s;
 }
 
-export function measureBetween(dataset: CryoDataset, a: RowPoint, b: RowPoint, model: VelocityLayer[], bulk: number) {
+function measureBetween(dataset: CryoDataset, a: RowPoint, b: RowPoint, model: VelocityLayer[], bulk: number) {
   const { sampleInterval: dt, traceSpacingM } = dataset.radargram;
   const surf = dataset.surfaceEcho.indices;
   const da = timeToDepth((a.row - surf[a.trace]) * dt, model, bulk);

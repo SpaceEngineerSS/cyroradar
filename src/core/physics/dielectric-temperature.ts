@@ -39,15 +39,8 @@ export function waterIcePermittivity(temperatureK: number, frequencyHz = 20e6): 
   return result(debyeReal, debyeImag + sigma / (omega * EPS0));
 }
 
-export function co2IcePermittivity(temperatureK: number): ComplexPermittivity {
-  const T = Math.min(200, Math.max(50, temperatureK));
-  const real = 2.12 + 2.5e-4 * (T - 150);
-  const tanDelta = 1e-4 + 5e-7 * (T - 150);
-  return result(real, real * tanDelta);
-}
-
 /** Maxwell Garnett mixing of spherical inclusions in a host. */
-export function maxwellGarnett(host: number, inclusion: number, volumeFraction: number): number {
+function maxwellGarnett(host: number, inclusion: number, volumeFraction: number): number {
   const f = Math.min(0.99, Math.max(0, volumeFraction));
   const beta = (inclusion - host) / (inclusion + 2 * host);
   return (host * (1 + 2 * f * beta)) / (1 - f * beta);

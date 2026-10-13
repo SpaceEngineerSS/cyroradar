@@ -13,7 +13,7 @@
  *   Orosei et al. (2018), Science 361, 490–493
  *   Bierson et al. (2021), GRL 48, e2021GL093880
  *   Smith et al. (2021), GRL 48, e2021GL093618
- *   Stillman et al. (2010), JGR 115, E09005 */
+ *   Lalich et al. (2022), Nature Astronomy 6, 1142–1146 */
 
 import type { HypothesisMatrix, CRISMPixel } from '../../types/types';
 

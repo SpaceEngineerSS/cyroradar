@@ -1,0 +1,54 @@
+# Waveform inversion
+
+Detection reads one number per trace: how bright the base is. The waveform inversion tries to explain every sample in a window at once, by finding a permittivity section whose simulated echoes match the radargram. It is labelled experimental for good reasons, listed at the end of this page.
+
+<Shot src="inversion.jpg" alt="Inversion window over the bright basal patch, coloured by recovered permittivity, with the misfit curve in the panel" caption="Inversion of a window over the Planum Australe patch. The misfit curve in the panel never rises: every accepted step lowers it." />
+
+## The model
+
+Inside the window the wave equation is solved on a grid, under the exploding-reflector idea: every permittivity contrast fires at time zero and the wave travels up at half the true speed, so one-way time on the grid equals the radargram's round-trip delay.
+
+$$
+\frac{1}{s^2}\frac{\partial^2 u}{\partial t^2} = \nabla^2 u + \rho(x,z)\,w(t), \qquad s \propto \frac{1}{\sqrt{\varepsilon}}
+$$
+
+The source strength $\rho$ is the amplitude reflection coefficient between neighbouring cells, $\rho = \tanh\!\big(\tfrac14\Delta\ln\varepsilon\big)$, and $w(t)$ is the derivative of a Gaussian whose width matches the instrument's bandwidth, so a flat reflector records as a clean pulse. The vertical grid is three times finer than the data so the wave is not distorted by the grid; sponge layers above and below absorb what leaves the window.
+
+## The misfit
+
+Radargrams are detected power with no phase, so the inversion fits envelopes. The observed amplitudes $10^{P/20}$ are put into reflection-coefficient units with the surface echo of each trace (undoing the surface reflection, the surface transmission and the two-way loss to each sample). A calibration run with one weak, known contrast fixes the factor $\alpha$ that puts the simulated $|u|$ in the same units. Then
+
+$$
+J = \frac{1}{2}\sum \big(\alpha\,|u| - A_\text{obs}\big)^2 \Big/ \sum A_\text{obs}^2 .
+$$
+
+## The gradient
+
+The gradient of $J$ comes from the adjoint-state method: the residuals are fed back in at the receivers and propagated backwards in time with the same scheme. Correlating the backward field $\lambda$ with the source wavelet gives the sensitivity to reflectivity; correlating it with $\partial^2 u/\partial t^2$ gives the sensitivity to wave speed. Both are chained to $\ln\varepsilon$ on the coarse grid. A unit test checks the reflectivity part against finite differences.
+
+<Figure caption="One iteration. The adjoint run costs about the same as the forward run, so each step needs two simulations plus a few more for the line search.">
+  <FwiLoop />
+</Figure>
+
+## Priors
+
+An envelope cannot tell a step up in permittivity from a step down of the same size. Two priors close the gap:
+
+- a smoothed **total-variation** penalty on $\ln\varepsilon$, which prefers blocky, layered sections;
+- **decreases with depth cost three times as much as increases**, because compaction and a rock basement make permittivity grow downward in most Martian settings. A clean-ice packet under a dusty one can still appear; the data just have to ask for it.
+
+The start is a recursive estimate that reads each sample as part of a reflection and integrates downward. Updates are steepest descent on $\ln\varepsilon$ with along-track smoothing and a backtracking line search.
+
+## Where it runs
+
+With WebGPU (current Chrome and Edge), each time step is a compute dispatch and a whole simulation is recorded into one pass; grids up to 128 × 96 cells. Without WebGPU the same algorithm runs on a background thread at up to 48 × 64. Larger windows are averaged down to fit. **Stop** ends the run immediately.
+
+## What it does not do
+
+- It is 2-D and scalar. Real radar waves are vector fields in 3-D.
+- Attenuation inside the window, transmission losses above it, and off-plane scattering are not modelled.
+- The window top is treated as the source of time; whatever lies above it is ignored.
+- The velocity part of the gradient is sampled once per data sample, not every time step.
+- The priors shape the answer. A section that looks layered may be layered because the prior asked for it.
+
+Use it to see which contrasts the data can support, not to read off a permittivity to two decimals. On the simulated Planum Australe patch it recovers a basal contrast in the right place with ε in the high 20s against a true 35.
